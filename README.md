@@ -109,11 +109,27 @@ GitHub > Project > Settings > GitHub Pages
 ```yaml
 Source:
   branch: main
-  folder: /root
+  folder: /docs
 ```
 
 ブラウザで表示する。
 
 ```sh
 open https://rema424.github.io/remalab/
+```
+
+## Google Analytics
+
+Google Analytics の プロパティを作成する。
+
+```yaml
+プロパティ名: remalab
+レポートのタイムゾーン: 日本
+通貨: 日本円
+業種: Computers & Electronics
+ビジネスの規模: 小規模
+利用目的: サイトまたはアプリでの顧客エンゲージメントを測定する
+Choose a platform: ウェブ
+ウェブサイトのURL: https://rema424.github.io/remalab/
+ストリーム名: RemaLab
 ```

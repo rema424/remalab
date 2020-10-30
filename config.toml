@@ -1,4 +1,4 @@
-baseURL = "https://rema424.github.io/remalab/"
+baseURL = "https://rema424.github.io/"
 languageCode = "ja-jp"
 title = "RemaLab"
 theme = "anubis"

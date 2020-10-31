@@ -1,4 +1,10 @@
-# RemaLab
+---
+title: Hugo と GitHub Pages で技術ブログ
+date: 2020-10-31T16:03:00+09:00
+draft: false
+---
+
+## TOC
 
 - Getting Started
 - Host on GitHub

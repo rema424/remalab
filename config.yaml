@@ -5,7 +5,8 @@ theme: anubis
 publishDir: docs
 enableRobotsTXT: true
 hasCJKLanguage: true 
-summaryLength: 100
+summaryLength: 0
+paginate: 20
 
 params:
   author: rema

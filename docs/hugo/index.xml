@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>RemaLab</title><link>https://rema424.github.io/remalab/</link><description>RemaLab</description><generator>Hugo -- gohugo.io</generator><language>ja-jp</language><lastBuildDate>Sat, 31 Oct 2020 16:03:00 +0900</lastBuildDate><atom:link href="https://rema424.github.io/remalab/index.xml" rel="self" type="application/rss+xml"/><item><title>Hugo と GitHub Pages で技術ブログ</title><link>https://rema424.github.io/remalab/hugo/start/</link><pubDate>Sat, 31 Oct 2020 16:03:00 +0900</pubDate><guid>https://rema424.github.io/remalab/hugo/start/</guid><description>&lt;h2 id="toc">TOC&lt;/h2>
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Hugos on RemaLab</title><link>https://rema424.github.io/remalab/hugo/</link><description>RemaLab (Hugos)</description><generator>Hugo -- gohugo.io</generator><language>ja-jp</language><lastBuildDate>Sat, 31 Oct 2020 16:03:00 +0900</lastBuildDate><atom:link href="https://rema424.github.io/remalab/hugo/index.xml" rel="self" type="application/rss+xml"/><item><title>Hugo と GitHub Pages で技術ブログ</title><link>https://rema424.github.io/remalab/hugo/start/</link><pubDate>Sat, 31 Oct 2020 16:03:00 +0900</pubDate><guid>https://rema424.github.io/remalab/hugo/start/</guid><description>&lt;h2 id="toc">TOC&lt;/h2>
 &lt;ul>
 &lt;li>Getting Started&lt;/li>
 &lt;li>Host on GitHub&lt;/li>
@@ -264,10 +264,4 @@ Google アナリティクスでデータが収集・処理される仕組みの�
 git add .
 git commit -m &lt;span style="color:#e6db74">&amp;#34;add: privacy&amp;#34;&lt;/span>
 git push
-&lt;/code>&lt;/pre>&lt;/div></description></item><item><title>プライバシーポリシー</title><link>https://rema424.github.io/remalab/info/privacy/</link><pubDate>Sat, 31 Oct 2020 14:38:12 +0900</pubDate><guid>https://rema424.github.io/remalab/info/privacy/</guid><description>&lt;h2 id="アクセス解析ツールについて">アクセス解析ツールについて&lt;/h2>
-&lt;p>当サイトでは、アクセス解析のために「Google アナリティクス」を使用しています。&lt;/p>
-&lt;p>データは Cookie を用いて収集されます。&lt;/p>
-&lt;p>Google アナリティクスでデータが収集・処理される仕組みのについては以下のリンクをご参照ください。&lt;/p>
-&lt;ul>
-&lt;li>&lt;a href="https://policies.google.com/technologies/partner-sites?hl=ja">ユーザーが Google パートナーのサイトやアプリを使用する際の Google によるデータ使用&lt;/a>&lt;/li>
-&lt;/ul></description></item></channel></rss>
+&lt;/code>&lt;/pre>&lt;/div></description></item></channel></rss>

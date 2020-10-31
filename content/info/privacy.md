@@ -2,10 +2,10 @@
 title: "プライバシーポリシー"
 date: 2020-10-31T14:38:12+09:00
 draft: false
-# categories:
-#   - info
-# tags:
-#   - info
+categories:
+  - info
+tags:
+  - info
 ---
 
 ## アクセス解析ツールについて

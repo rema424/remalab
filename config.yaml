@@ -13,9 +13,9 @@ params:
   description: ''
   readMore: false
 
-# taxonomies:
-#   category: categories
-#   tag: tags
+taxonomies:
+  category: categories
+  tag: tags
 
 menu:
   footer:

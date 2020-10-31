@@ -1,4 +1,6 @@
+{{ if eq (getenv "HUGO_ENV") "production" | or (eq .Site.Params.env "production") }}
 <!-- Google Tag Manager (noscript) -->
 <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-N95L2VD"
 height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 <!-- End Google Tag Manager (noscript) -->
+{{ end }}

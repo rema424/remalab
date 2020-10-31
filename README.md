@@ -204,9 +204,12 @@ touch layouts/partials/gtm/head.html layouts/partials/gtm/body.html
 
 それぞれのファイルに控えておいた GTM スニペットを記載して保存します。
 
+環境変数が `production` の場合のみ、script を出力するようにします。
+
 ```html
 <!-- layouts/partials/gtm/head.html -->
 
+{{ if eq (getenv "HUGO_ENV") "production" | or (eq .Site.Params.env "production") }}
 <!-- Google Tag Manager -->
 <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
 new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
@@ -214,15 +217,18 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
 })(window,document,'script','dataLayer','<your-container-id>');</script>
 <!-- End Google Tag Manager -->
+{{ end }}
 ```
 
 ```html
 <!-- layouts/partials/gtm/body.html -->
 
+{{ if eq (getenv "HUGO_ENV") "production" | or (eq .Site.Params.env "production") }}
 <!-- Google Tag Manager (noscript) -->
 <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=<your-container-id>"
 height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 <!-- End Google Tag Manager (noscript) -->
+{{ end }}
 ```
 
 ### パーシャルの読み込み
@@ -278,8 +284,49 @@ cp themes/anubis/layouts/_default/baseof.html layouts/_default/baseof.html
 
 ### 確認
 
-ローカルサーバーを起動してアクセスし、開発者ツールでスニペットが配置されているか確認します。
+本番モードでローカルサーバーを起動してアクセスし、開発者ツールでスニペットが配置されているか確認します。
 
 ```sh
-hugo server -D
+HUGO_ENV=production hugo server -D
 ```
+
+### GTM の設定
+
+Google Tag Manager のダッシュボードから変数の設定、タグの作成、公開を行います。
+
+```yaml
+Google Tab Manager:
+  コンテナ:
+    変数:
+      ユーザー定義変数:
+        - 新規:
+            変数名: GA
+            変数の設定:
+              変数のタイプ: 定数
+              値: <Google Analyticsの測定ID>
+    タグ:
+      新規: 
+        - タグ名: Google アナリティクス GA4 設定
+          タグの設定:
+            タグタイプ: Googleアナリティクス:GA4設定
+            測定ID: {{GA}}
+          トリガー: All Pages
+    公開:
+      送信設定: バージョンの公開と作成
+      バージョン名: GA4の設定追加
+      バージョンの説明: ''
+      環境への公開: Live
+```
+
+### 確認
+
+本番モードでローカルサーバーを起動してアクセスし、`<head>` 内に gtag があることを確認します。
+
+```
+<script type="text/javascript" async="" src="http://www.googletagmanager.com/gtag/js?id=<測定ID>&l=dataLayer&cx=c"></script>
+```
+
+次に Google Analytics のダッシュボードを開き、リアルタイムタブで自分のアクセスが計測されていることを確認します。
+
+## Google Search Console
+

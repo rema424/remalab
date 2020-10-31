@@ -1,0 +1,11 @@
+{
+    "[html]": {
+        "editor.formatOnSave": false
+    },
+    "[javascript]": {
+        "editor.formatOnSave": false
+    },
+    "[md]": {
+        "editor.formatOnSave": false
+    },
+}

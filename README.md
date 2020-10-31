@@ -151,11 +151,7 @@ git commit -m "first deploy"
 git push
 ```
 
-GitHub の設定を編集する。
-
-GitHub > Project > Settings > GitHub Pages
-
-ブラウザで表示する。
+### 確認
 
 ```sh
 open https://rema424.github.io/remalab/
@@ -163,9 +159,13 @@ open https://rema424.github.io/remalab/
 
 ## Google Analytics
 
-Google Analytics の プロパティを作成する。
+### Google Analytics プロパティの作成
 
-```yaml
+Google Analytics アカウントを未所持の場合は作成します。
+
+アカウントが準備できたらプロパティを作成します。
+
+```yml
 プロパティ名: remalab
 レポートのタイムゾーン: 日本
 通貨: 日本円
@@ -175,4 +175,111 @@ Google Analytics の プロパティを作成する。
 Choose a platform: ウェブ
 ウェブサイトのURL: https://rema424.github.io/remalab/
 ストリーム名: RemaLab
+```
+
+### Google Tag Manager コンテナの作成
+
+Google Tag Manager アカウントを未所持の場合は作成します。
+
+アカウントが準備できたらコンテナを作成します。
+
+```yml
+コンテナ名: remalab
+ターゲットプラットフォーム: ウェブ
+```
+
+コンテナを作成すると `<head>` と `<body>` に設置するスニペットが表示されるので控えておきます。（後で GTM ダッシュボード上で確認することもできます。）
+
+### パーシャルの作成
+
+GTM スニペットを設置するためのファイルを作成していきます。
+
+```sh
+# ディレクトリの作成
+mkdir -p layouts/partials/gtm/
+
+# ファイル作成
+touch layouts/partials/gtm/head.html layouts/partials/gtm/body.html
+```
+
+それぞれのファイルに控えておいた GTM スニペットを記載して保存します。
+
+```html
+<!-- layouts/partials/gtm/head.html -->
+
+<!-- Google Tag Manager -->
+<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+})(window,document,'script','dataLayer','<your-container-id>');</script>
+<!-- End Google Tag Manager -->
+```
+
+```html
+<!-- layouts/partials/gtm/body.html -->
+
+<!-- Google Tag Manager (noscript) -->
+<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=<your-container-id>"
+height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+<!-- End Google Tag Manager (noscript) -->
+```
+
+### パーシャルの読み込み
+
+テーマをカスタマイズしてGTMスニペットを配置していきます。
+
+まずはベースファイルをテーマからプロジェクト側にコピーします。
+
+```sh
+# ディレクトリ作成
+mkdir layouts/_default/
+
+# ファイルコピー
+cp themes/anubis/layouts/_default/baseof.html layouts/_default/baseof.html
+```
+
+ファイルがコピーできたら中身を編集します。
+
+```html
+<!-- layouts/_default/baseof.html -->
+
+<!DOCTYPE html>
+{{ $dataTheme := "" }}
+{{ if eq site.Params.style "dark-without-switcher" }}
+    {{ $dataTheme = "dark" }}
+{{ end }}
+<html lang="{{ .Site.LanguageCode }}" data-theme="{{ $dataTheme }}">
+<head>
+    {{ partial "gtm/head.html" . }} <!-- この行を追加 -->
+    {{ block "head" . }}
+        {{ partial "head.html" . }}
+    {{ end }}
+</head>
+<body>
+    {{ partial "gtm/body.html" . }} <!-- この行を追加 -->
+    <a class="skip-main" href="#main">{{ i18n "skipToContent" | humanize }}</a>
+    <div class="container">
+        <header class="common-header"> 
+            {{ block "header" . }}
+                {{ partial "header.html" . }}
+            {{ end }}
+        </header>
+        <main id="main" tabindex="-1"> 
+            {{ block "main" . }}{{ end }}
+        </main>
+        {{ block "footer" . }}
+            {{ partial "footer.html" . }}
+        {{ end }}
+    </div>
+</body>
+</html>
+```
+
+### 確認
+
+ローカルサーバーを起動してアクセスし、開発者ツールでスニペットが配置されているか確認します。
+
+```sh
+hugo server -D
 ```

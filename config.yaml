@@ -12,6 +12,8 @@ params:
   author: rema
   description: プログラミングやゲームについて日々の学びをログとして残します。
   readMore: false
+  customCSS:
+    - css/main.css
 
 taxonomies:
   category: categories

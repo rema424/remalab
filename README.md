@@ -1,5 +1,11 @@
 # RemaLab
 
+- Getting Started
+- Host on GitHub
+- Google Analytics
+- Google Search Console
+- Privacy Policy
+
 ## Getting Started
 
 ### インストール
@@ -37,8 +43,8 @@ echo 'theme = "anubis"' >> config.toml
 ### 記事の作成
 
 ```sh
-hugo new <category>/<article-title>.md
-# => content/<catogory>/<argicle-title>.md が生成される
+hugo new <section>/<article-title>.md
+# => content/<section>/<argicle-title>.md が生成される
 ```
 
 ### ローカルサーバーの起動
@@ -53,12 +59,29 @@ open http://localhost:1313
 
 ### 設定ファイルの編集
 
-```toml
-# config.toml
-baseURL = "http://example.org/"
-languageCode = "ja-jp"
-title = "RemaLab"
-theme = "anubis"
+お好みですが、`toml` から `yaml` に変更します。
+
+```sh
+mv config.toml config.yaml
+```
+
+中身を編集します。
+
+```yaml
+# config.yaml
+baseURL: "http://example.org/"
+languageCode: ja-jp
+title: RemaLab
+theme: anubis
+publishDir: docs
+enableRobotsTXT: true
+hasCJKLanguage: true 
+summaryLength: 100
+
+params:
+  author: rema
+  description: ''
+  readMore: false
 ```
 
 ### ビルド
@@ -102,10 +125,10 @@ GitHub Pages には **User/Organization Pages** と **Project Pages** の 2 タ�
 
 今回は **Project Pages** を採用します。(`https://<username>.github.io/<project>/`)
 
-```toml
-# config.toml
-baseURL = "https://rema424.github.io/remalab/"
-publishDir = "docs"
+```yaml
+# config.yaml
+baseURL: https://rema424.github.io/remalab/
+publishDir: docs
 ```
 
 ### GitHub の設定変更
@@ -176,6 +199,8 @@ Choose a platform: ウェブ
 ウェブサイトのURL: https://rema424.github.io/remalab/
 ストリーム名: RemaLab
 ```
+
+プロパティが作成できたら、[管理] > [プロパティ] > [データ設定] > [データ保持] からイベントデータ保持を14か月に変更しておきます。
 
 ### Google Tag Manager コンテナの作成
 
@@ -330,3 +355,96 @@ Google Tab Manager:
 
 ## Google Search Console
 
+### 本番モードでデプロイ
+
+ウェブサイトの所有確認に Google Tag Manager を利用するためデプロイしておきます。
+
+```sh
+HUGO_ENV=production hugo
+git add .
+git commit -m "add: ga"
+git push
+```
+
+### プロパティの作成
+
+[Google Search Console](https://search.google.com/search-console) にアクセスしてプロパティを作成します。
+
+```yaml
+プロパティタイプ: URL プレフィックス
+URL: https://rema424.github.io/remalab/
+```
+
+## Privacy Policy
+
+[Google アナリティクスの利用規約](https://marketingplatform.google.com/about/analytics/terms/jp/)において、利用者には次の事項が求められています。
+
+- プライバシーポリシーを公開すること
+- データの収集に使われる技術について通知すること
+- Google アナリティクスの使用を通知すること
+- Google アナリティクスでデータが収集、処理される仕組みについて開示すること
+
+これらを盛り込んだ記事を Hugo で作成し、リンクをフッターに配置することにします。
+
+### ファイルの作成
+
+プライバシーポリシーの記事ファイルを作成します。
+
+```sh
+hugo new info/privacy.md
+```
+
+内容を編集します。
+
+```md
+<!-- content/info/privacy.md -->
+
+---
+title: "プライバシーポリシー"
+date: 2020-10-31T14:38:12+09:00
+draft: false
+---
+
+# プライバシーポリシー
+
+## アクセス解析ツールについて
+
+当サイトでは、アクセス解析のために「Google アナリティクス」を使用しています。
+
+データは Cookie を用いて収集されます。
+
+Google アナリティクスでデータが収集・処理される仕組みの詳細については以下のリンク先を参照ください。
+
+- [ユーザーが Google パートナーのサイトやアプリを使用する際の Google によるデータ使用](https://policies.google.com/technologies/partner-sites?hl=ja)
+```
+
+### リンクの設置
+
+```yaml
+# config.yaml
+
+menu:
+  footer:
+    - identifier: privacy
+      name: プライバシーポリシー
+      title: プライバシーポリシー
+      url: /info/privacy/
+      weight: 0
+```
+
+### 確認
+
+ローカルサーバーを起動して確認します。
+
+```sh
+hugo server -D
+```
+
+### デプロイ
+
+```sh
+HUGO_ENV=production hugo --minify
+git add .
+git commit -m "add: ga"
+git push
+```

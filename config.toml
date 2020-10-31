@@ -1,6 +1,0 @@
-baseURL = "https://rema424.github.io/remalab/"
-languageCode = "ja-jp"
-title = "RemaLab"
-theme = "anubis"
-publishDir = "docs"
-googleAnalytics = "G-71V9CR3B12"

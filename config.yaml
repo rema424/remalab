@@ -1,0 +1,25 @@
+baseURL: https://rema424.github.io/remalab/
+languageCode: ja-jp
+title: RemaLab
+theme: anubis
+publishDir: docs
+enableRobotsTXT: true
+hasCJKLanguage: true 
+summaryLength: 100
+
+params:
+  author: rema
+  description: ''
+  readMore: false
+
+# taxonomies:
+#   category: categories
+#   tag: tags
+
+menu:
+  footer:
+    - identifier: privacy
+      name: プライバシーポリシー
+      title: プライバシーポリシー
+      url: /info/privacy/
+      weight: 0

@@ -10,7 +10,7 @@ paginate: 20
 
 params:
   author: rema
-  description: ''
+  description: プログラミングやゲームについて日々の学びをログとして残します。
   readMore: false
 
 taxonomies:

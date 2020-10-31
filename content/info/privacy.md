@@ -1,5 +1,6 @@
 ---
 title: "プライバシーポリシー"
+description: 当サイトにおけるプライバシーポリシーです。
 date: 2020-10-31T14:38:12+09:00
 draft: false
 categories:

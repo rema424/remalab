@@ -10,10 +10,17 @@ brew install hugo
 
 # バージョン確認
 hugo version
+```
 
-# プロジェクト作成
+### プロジェクト作成
+
+```sh
 hugo new site <your-project-name>
+```
 
+### テーマの設定
+
+```sh
 # ディレクトリ移動
 cd <your-project-name>
 
@@ -25,16 +32,18 @@ git submodule add https://github.com/mitrichius/hugo-theme-anubis.git themes/anu
 
 # 設定ファイルにテーマを追加
 echo 'theme = "anubis"' >> config.toml
+```
 
-# 記事ファイルの作成
+### 記事の作成
+
+```sh
 hugo new <category>/<article-title>.md
+# => content/<catogory>/<argicle-title>.md が生成される
+```
 
-# コミット
+### ローカルサーバーの起動
 
-git add .
-
-git commit -m "first post"
-
+```sh
 # サーバー起動（ドラフトも表示）
 hugo server -D
 
@@ -42,11 +51,10 @@ hugo server -D
 open http://localhost:1313
 ```
 
-### 設定の編集
-
-`config.toml` を編集
+### 設定ファイルの編集
 
 ```toml
+# config.toml
 baseURL = "http://example.org/"
 languageCode = "ja-jp"
 title = "RemaLab"
@@ -56,43 +64,84 @@ theme = "anubis"
 ### ビルド
 
 ```sh
+# ドラフトも含める場合
 hugo -D
+
+# ドラフトを含めない場合
+hugo
 ```
 
 ## Host on GitHub
 
+### リモートリポジトリの作成
+
 GitHub で新規プロジェクトを作成します（今回は remalab で作成）。
 
-作成できたら Git リポジトリを push します。
+リモートリポジトリが作成できたら push します。
 
 ```sh
+# 変更をステージ
+git add .
+
+# コミット
+git commit -m "first commit"
+
+# リモートリポジトリの追加
 git remote add origin https://github.com/rema424/remalab.git
 
+# ブランチの切替
 git branch -M main
 
+# puch
 git push -u origin main
 ```
 
-`config.toml` を編集する。
+### 設定ファイルの編集
+
+GitHub Pages には **User/Organization Pages** と **Project Pages** の 2 タイプがあります。
+
+今回は **Project Pages** を採用します。(`https://<username>.github.io/<project>/`)
 
 ```toml
+# config.toml
 baseURL = "https://rema424.github.io/remalab/"
 publishDir = "docs"
 ```
 
-既存のビルド先ディレクトリを削除する。
+### GitHub の設定変更
 
-```sh
-rm -r public
+GitHub > Project > Settings > GitHub Pages より設定を変更します。
+
+```yaml
+Source:
+  branch: main
+  folder: /docs
 ```
 
-ビルド（テストのためドラフトも含む）。
+### ローカルサーバーの起動
+
+設定を変更したため、一度ローカルで確認します。
 
 ```sh
+# サーバー起動（ドラフトも表示）
+hugo server -D
+# => 設定変更により TOP が localhost:1313/ から localhost:1313/remalab/ へ
+
+# ブラウザで表示
+open http://localhost:1313/remalab/
+```
+
+### 再ビルド
+
+```sh
+# 既存のビルド先ディレクトリを削除
+rm -r public
+
+# ビルド（テストのためドラフトも含む）
 hugo -D
 ```
 
-ビルド済みソースコードを push する。
+### デプロイ
 
 ```sh
 git add .
@@ -105,12 +154,6 @@ git push
 GitHub の設定を編集する。
 
 GitHub > Project > Settings > GitHub Pages
-
-```yaml
-Source:
-  branch: main
-  folder: /docs
-```
 
 ブラウザで表示する。
 

@@ -130,7 +130,11 @@ git push -u origin main
 
 GitHub Pages には **User/Organization Pages** と **Project Pages** の 2 タイプがあります。
 
-今回は **Project Pages** を採用します。(`https://<username>.github.io/<project>/`)
+今回は **Project Pages** を採用します。
+
+```
+https://<username>.github.io/<project>/
+```
 
 ```yaml
 # config.yaml

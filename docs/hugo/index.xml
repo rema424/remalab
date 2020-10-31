@@ -69,8 +69,9 @@ git branch -M main
 git push -u origin main
 &lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="設定ファイルの編集-1">設定ファイルの編集&lt;/h3>
 &lt;p>GitHub Pages には &lt;strong>User/Organization Pages&lt;/strong> と &lt;strong>Project Pages&lt;/strong> の 2 タイプがあります。&lt;/p>
-&lt;p>今回は &lt;strong>Project Pages&lt;/strong> を採用します。(&lt;code>https://&amp;lt;username&amp;gt;.github.io/&amp;lt;project&amp;gt;/&lt;/code>)&lt;/p>
-&lt;div class="highlight">&lt;pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="color:#75715e"># config.yaml&lt;/span>
+&lt;p>今回は &lt;strong>Project Pages&lt;/strong> を採用します。&lt;/p>
+&lt;pre>&lt;code>https://&amp;lt;username&amp;gt;.github.io/&amp;lt;project&amp;gt;/
+&lt;/code>&lt;/pre>&lt;div class="highlight">&lt;pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="color:#75715e"># config.yaml&lt;/span>
 &lt;span style="color:#f92672">baseURL&lt;/span>: &lt;span style="color:#ae81ff">https://rema424.github.io/remalab/&lt;/span>
 &lt;span style="color:#f92672">publishDir&lt;/span>: &lt;span style="color:#ae81ff">docs&lt;/span>
 &lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="github-の設定変更">GitHub の設定変更&lt;/h3>

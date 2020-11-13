@@ -26,3 +26,8 @@ menu:
       title: プライバシーポリシー
       url: /info/privacy/
       weight: 0
+
+markup:
+  goldmark:
+    renderer:
+      unsafe: true

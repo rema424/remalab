@@ -108,11 +108,11 @@ def split_to_sentences(text):
     return [s for s in text.split("\n") if s != ""]
 
 
-def convert_to_single_embedding(embeddings, pooling_strategy="REDUCE_MEAN"):
-    if pooling_strategy == "REDUCE_MEAN":
-        return torch.mean(embeddings, dim=0)
-    elif pooling_strategy == "REDUCE_MAX":
-        return torch.max(embeddings, dim=0)
+def convert_to_single_embedding(embeddings):
+    """
+    文ベクトルのリストから文章ベクトルを計算する
+    """
+    return torch.mean(embeddings, dim=0)
 
 
 def embedding(text):

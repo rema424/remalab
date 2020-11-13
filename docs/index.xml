@@ -70,11 +70,11 @@ text &lt;span style="color:#f92672">=&lt;/span> re&lt;span style="color:#f92672"
 &lt;/span>&lt;span style="color:#e6db74"> &amp;#34;&amp;#34;&amp;#34;&lt;/span>
 text &lt;span style="color:#f92672">=&lt;/span> re&lt;span style="color:#f92672">.&lt;/span>sub(&lt;span style="color:#e6db74">&amp;#34;。&amp;#34;&lt;/span>, &lt;span style="color:#e6db74">&amp;#34;。&lt;/span>&lt;span style="color:#ae81ff">\n&lt;/span>&lt;span style="color:#e6db74">&amp;#34;&lt;/span>, text)
 &lt;span style="color:#66d9ef">return&lt;/span> [s &lt;span style="color:#66d9ef">for&lt;/span> s &lt;span style="color:#f92672">in&lt;/span> text&lt;span style="color:#f92672">.&lt;/span>split(&lt;span style="color:#e6db74">&amp;#34;&lt;/span>&lt;span style="color:#ae81ff">\n&lt;/span>&lt;span style="color:#e6db74">&amp;#34;&lt;/span>) &lt;span style="color:#66d9ef">if&lt;/span> s &lt;span style="color:#f92672">!=&lt;/span> &lt;span style="color:#e6db74">&amp;#34;&amp;#34;&lt;/span>]
-&lt;span style="color:#66d9ef">def&lt;/span> &lt;span style="color:#a6e22e">convert_to_single_embedding&lt;/span>(embeddings, pooling_strategy&lt;span style="color:#f92672">=&lt;/span>&lt;span style="color:#e6db74">&amp;#34;REDUCE_MEAN&amp;#34;&lt;/span>):
-&lt;span style="color:#66d9ef">if&lt;/span> pooling_strategy &lt;span style="color:#f92672">==&lt;/span> &lt;span style="color:#e6db74">&amp;#34;REDUCE_MEAN&amp;#34;&lt;/span>:
+&lt;span style="color:#66d9ef">def&lt;/span> &lt;span style="color:#a6e22e">convert_to_single_embedding&lt;/span>(embeddings):
+&lt;span style="color:#e6db74">&amp;#34;&amp;#34;&amp;#34;
+&lt;/span>&lt;span style="color:#e6db74"> 文ベクトルのリストから文章ベクトルを計算する
+&lt;/span>&lt;span style="color:#e6db74"> &amp;#34;&amp;#34;&amp;#34;&lt;/span>
 &lt;span style="color:#66d9ef">return&lt;/span> torch&lt;span style="color:#f92672">.&lt;/span>mean(embeddings, dim&lt;span style="color:#f92672">=&lt;/span>&lt;span style="color:#ae81ff">0&lt;/span>)
-&lt;span style="color:#66d9ef">elif&lt;/span> pooling_strategy &lt;span style="color:#f92672">==&lt;/span> &lt;span style="color:#e6db74">&amp;#34;REDUCE_MAX&amp;#34;&lt;/span>:
-&lt;span style="color:#66d9ef">return&lt;/span> torch&lt;span style="color:#f92672">.&lt;/span>max(embeddings, dim&lt;span style="color:#f92672">=&lt;/span>&lt;span style="color:#ae81ff">0&lt;/span>)
 &lt;span style="color:#66d9ef">def&lt;/span> &lt;span style="color:#a6e22e">embedding&lt;/span>(text):
 &lt;span style="color:#75715e"># 前処理&lt;/span>
 text &lt;span style="color:#f92672">=&lt;/span> preprocess(text)

@@ -1,0 +1,18 @@
+body {
+    font-size: 16px;
+}
+
+h2 {
+    font-size: 1.4em;
+    margin-top: 84px;
+}
+
+h3 {
+    margin-top: 52px;
+}
+
+@media (max-width: 840px) {
+    .container {
+        max-width: 92%;
+    }
+}

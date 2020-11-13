@@ -1,0 +1,549 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>RemaLab</title><link>https://rema424.github.io/remalab/</link><description>RemaLab</description><generator>Hugo -- gohugo.io</generator><language>ja-jp</language><lastBuildDate>Fri, 13 Nov 2020 21:13:05 +0900</lastBuildDate><atom:link href="https://rema424.github.io/remalab/index.xml" rel="self" type="application/rss+xml"/><item><title>【2020年11月版】PyTorchとBERTで文章の分散表現（ベクトル）を取得する</title><link>https://rema424.github.io/remalab/posts/sentence-vector/</link><pubDate>Fri, 13 Nov 2020 21:13:05 +0900</pubDate><guid>https://rema424.github.io/remalab/posts/sentence-vector/</guid><description>&lt;p>日本語における自然言語処理のライブラリ整備がここ1年で大きく進みました。
+これに伴って情報の古い記事も多くなったように見受けられたので、今はこんなに簡単になったんだよということで記しておきます。&lt;/p>
+&lt;p>以前はBERTで日本語を扱う場合は形態素解析やBERTトークン化を自身で行う必要がありましたが、今はライブラリに一任できるようになりました。環境構築も簡単になり非常に扱いやすくなりました。&lt;/p>
+&lt;h2 id="setup">setup&lt;/h2>
+&lt;div class="highlight">&lt;pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-sh" data-lang="sh">&lt;span style="color:#75715e"># python3.8のインストール（2020年11月現在、3.9だとエラーになるライブラリが多いため3.8を利用する）&lt;/span>
+brew install python@3.8
+&lt;span style="color:#75715e"># 仮想環境の作成&lt;/span>
+python3 -m venv venv
+&lt;span style="color:#75715e"># 仮想環境をアクティベート&lt;/span>
+. venv/bin/activate
+&lt;span style="color:#75715e"># pipをアップグレード&lt;/span>
+python -m pip install --upgrade pip
+&lt;span style="color:#75715e"># pytorch（機械学習ライブラリ）のインストール&lt;/span>
+pip install torch
+&lt;span style="color:#75715e"># transformers（自然言語処理における学習済みモデル提供ライブラリ）のインストール&lt;/span>
+pip install transformers
+&lt;span style="color:#75715e"># numpy（行列計算ライブラリ）のインストール&lt;/span>
+pip install numpy
+&lt;span style="color:#75715e"># fugashi（形態素解析器）のインストール&lt;/span>
+pip install fugashi
+&lt;span style="color:#75715e"># ipadic（形態素解析用辞書）のインストール&lt;/span>
+pip install ipadic
+&lt;span style="color:#75715e"># mojimoji（日本語文字列の半角・全角変換ライブラリ）のインストール&lt;/span>
+pip install mojimoji
+&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="サンプルコード">サンプルコード&lt;/h2>
+&lt;div class="highlight">&lt;pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-py" data-lang="py">&lt;span style="color:#f92672">import&lt;/span> torch
+&lt;span style="color:#f92672">from&lt;/span> transformers &lt;span style="color:#f92672">import&lt;/span> BertModel
+&lt;span style="color:#f92672">from&lt;/span> transformers.tokenization_bert_japanese &lt;span style="color:#f92672">import&lt;/span> BertJapaneseTokenizer
+&lt;span style="color:#f92672">import&lt;/span> re
+&lt;span style="color:#f92672">import&lt;/span> mojimoji
+&lt;span style="color:#f92672">import&lt;/span> numpy &lt;span style="color:#f92672">as&lt;/span> np
+&lt;span style="color:#f92672">from&lt;/span> pprint &lt;span style="color:#f92672">import&lt;/span> pprint &lt;span style="color:#66d9ef">as&lt;/span> p
+&lt;span style="color:#75715e"># GPUが利用できるか確認&lt;/span>
+p(torch&lt;span style="color:#f92672">.&lt;/span>cuda&lt;span style="color:#f92672">.&lt;/span>is_available())
+&lt;span style="color:#75715e"># GPUとCPUのどちらを利用するか判定&lt;/span>
+device &lt;span style="color:#f92672">=&lt;/span> torch&lt;span style="color:#f92672">.&lt;/span>device(&lt;span style="color:#e6db74">&amp;#34;cuda:0&amp;#34;&lt;/span> &lt;span style="color:#66d9ef">if&lt;/span> torch&lt;span style="color:#f92672">.&lt;/span>cuda&lt;span style="color:#f92672">.&lt;/span>is_available() &lt;span style="color:#66d9ef">else&lt;/span> &lt;span style="color:#e6db74">&amp;#34;cpu&amp;#34;&lt;/span>)
+p(device)
+&lt;span style="color:#75715e"># トークナイザーの読み込み&lt;/span>
+tokenizer &lt;span style="color:#f92672">=&lt;/span> BertJapaneseTokenizer&lt;span style="color:#f92672">.&lt;/span>from_pretrained(
+&lt;span style="color:#e6db74">&amp;#34;cl-tohoku/bert-base-japanese-whole-word-masking&amp;#34;&lt;/span>
+)
+&lt;span style="color:#75715e"># 学習済みモデルの読み込み&lt;/span>
+model &lt;span style="color:#f92672">=&lt;/span> BertModel&lt;span style="color:#f92672">.&lt;/span>from_pretrained(&lt;span style="color:#e6db74">&amp;#34;cl-tohoku/bert-base-japanese-whole-word-masking&amp;#34;&lt;/span>)
+&lt;span style="color:#66d9ef">def&lt;/span> &lt;span style="color:#a6e22e">preprocess&lt;/span>(text):
+&lt;span style="color:#e6db74">&amp;#34;&amp;#34;&amp;#34;
+&lt;/span>&lt;span style="color:#e6db74"> 日本語文字列の前処理を行う
+&lt;/span>&lt;span style="color:#e6db74"> &amp;#34;&amp;#34;&amp;#34;&lt;/span>
+&lt;span style="color:#75715e"># 全角文字を半角に変換&lt;/span>
+text &lt;span style="color:#f92672">=&lt;/span> mojimoji&lt;span style="color:#f92672">.&lt;/span>zen_to_han(text)
+&lt;span style="color:#75715e"># 空白と改行を削除し、コンマとピリオドを句点と読点に変換&lt;/span>
+text &lt;span style="color:#f92672">=&lt;/span> (
+text&lt;span style="color:#f92672">.&lt;/span>replace(&lt;span style="color:#e6db74">&amp;#34; &amp;#34;&lt;/span>, &lt;span style="color:#e6db74">&amp;#34;&amp;#34;&lt;/span>)
+&lt;span style="color:#f92672">.&lt;/span>replace(&lt;span style="color:#e6db74">&amp;#34;&lt;/span>&lt;span style="color:#ae81ff">\n&lt;/span>&lt;span style="color:#e6db74">&amp;#34;&lt;/span>, &lt;span style="color:#e6db74">&amp;#34;&amp;#34;&lt;/span>)
+&lt;span style="color:#f92672">.&lt;/span>replace(&lt;span style="color:#e6db74">&amp;#34;,&amp;#34;&lt;/span>, &lt;span style="color:#e6db74">&amp;#34;、&amp;#34;&lt;/span>)
+&lt;span style="color:#f92672">.&lt;/span>replace(&lt;span style="color:#e6db74">&amp;#34;.&amp;#34;&lt;/span>, &lt;span style="color:#e6db74">&amp;#34;。&amp;#34;&lt;/span>)
+&lt;span style="color:#f92672">.&lt;/span>strip()
+)
+&lt;span style="color:#75715e"># 数字を#に変換&lt;/span>
+&lt;span style="color:#66d9ef">while&lt;/span> bool(re&lt;span style="color:#f92672">.&lt;/span>search(&lt;span style="color:#e6db74">r&lt;/span>&lt;span style="color:#e6db74">&amp;#34;[0-9]&amp;#34;&lt;/span>, text)):
+text &lt;span style="color:#f92672">=&lt;/span> re&lt;span style="color:#f92672">.&lt;/span>sub(&lt;span style="color:#e6db74">&amp;#34;[0-9]{5,}&amp;#34;&lt;/span>, &lt;span style="color:#e6db74">&amp;#34;#####&amp;#34;&lt;/span>, text)
+text &lt;span style="color:#f92672">=&lt;/span> re&lt;span style="color:#f92672">.&lt;/span>sub(&lt;span style="color:#e6db74">&amp;#34;[0-9]{4}&amp;#34;&lt;/span>, &lt;span style="color:#e6db74">&amp;#34;####&amp;#34;&lt;/span>, text)
+text &lt;span style="color:#f92672">=&lt;/span> re&lt;span style="color:#f92672">.&lt;/span>sub(&lt;span style="color:#e6db74">&amp;#34;[0-9]{3}&amp;#34;&lt;/span>, &lt;span style="color:#e6db74">&amp;#34;###&amp;#34;&lt;/span>, text)
+text &lt;span style="color:#f92672">=&lt;/span> re&lt;span style="color:#f92672">.&lt;/span>sub(&lt;span style="color:#e6db74">&amp;#34;[0-9]{2}&amp;#34;&lt;/span>, &lt;span style="color:#e6db74">&amp;#34;##&amp;#34;&lt;/span>, text)
+text &lt;span style="color:#f92672">=&lt;/span> re&lt;span style="color:#f92672">.&lt;/span>sub(&lt;span style="color:#e6db74">&amp;#34;[0-9]{1}&amp;#34;&lt;/span>, &lt;span style="color:#e6db74">&amp;#34;#&amp;#34;&lt;/span>, text)
+&lt;span style="color:#75715e"># 半角文字を全角に変換&lt;/span>
+&lt;span style="color:#66d9ef">return&lt;/span> mojimoji&lt;span style="color:#f92672">.&lt;/span>han_to_zen(text)
+&lt;span style="color:#66d9ef">def&lt;/span> &lt;span style="color:#a6e22e">split_to_sentences&lt;/span>(text):
+&lt;span style="color:#e6db74">&amp;#34;&amp;#34;&amp;#34;
+&lt;/span>&lt;span style="color:#e6db74"> 文章を文単位で分割しリストで返却する
+&lt;/span>&lt;span style="color:#e6db74"> &amp;#34;&amp;#34;&amp;#34;&lt;/span>
+text &lt;span style="color:#f92672">=&lt;/span> re&lt;span style="color:#f92672">.&lt;/span>sub(&lt;span style="color:#e6db74">&amp;#34;。&amp;#34;&lt;/span>, &lt;span style="color:#e6db74">&amp;#34;。&lt;/span>&lt;span style="color:#ae81ff">\n&lt;/span>&lt;span style="color:#e6db74">&amp;#34;&lt;/span>, text)
+&lt;span style="color:#66d9ef">return&lt;/span> [s &lt;span style="color:#66d9ef">for&lt;/span> s &lt;span style="color:#f92672">in&lt;/span> text&lt;span style="color:#f92672">.&lt;/span>split(&lt;span style="color:#e6db74">&amp;#34;&lt;/span>&lt;span style="color:#ae81ff">\n&lt;/span>&lt;span style="color:#e6db74">&amp;#34;&lt;/span>) &lt;span style="color:#66d9ef">if&lt;/span> s &lt;span style="color:#f92672">!=&lt;/span> &lt;span style="color:#e6db74">&amp;#34;&amp;#34;&lt;/span>]
+&lt;span style="color:#66d9ef">def&lt;/span> &lt;span style="color:#a6e22e">convert_to_single_embedding&lt;/span>(embeddings, pooling_strategy&lt;span style="color:#f92672">=&lt;/span>&lt;span style="color:#e6db74">&amp;#34;REDUCE_MEAN&amp;#34;&lt;/span>):
+&lt;span style="color:#66d9ef">if&lt;/span> pooling_strategy &lt;span style="color:#f92672">==&lt;/span> &lt;span style="color:#e6db74">&amp;#34;REDUCE_MEAN&amp;#34;&lt;/span>:
+&lt;span style="color:#66d9ef">return&lt;/span> torch&lt;span style="color:#f92672">.&lt;/span>mean(embeddings, dim&lt;span style="color:#f92672">=&lt;/span>&lt;span style="color:#ae81ff">0&lt;/span>)
+&lt;span style="color:#66d9ef">elif&lt;/span> pooling_strategy &lt;span style="color:#f92672">==&lt;/span> &lt;span style="color:#e6db74">&amp;#34;REDUCE_MAX&amp;#34;&lt;/span>:
+&lt;span style="color:#66d9ef">return&lt;/span> torch&lt;span style="color:#f92672">.&lt;/span>max(embeddings, dim&lt;span style="color:#f92672">=&lt;/span>&lt;span style="color:#ae81ff">0&lt;/span>)
+&lt;span style="color:#66d9ef">def&lt;/span> &lt;span style="color:#a6e22e">embedding&lt;/span>(text):
+&lt;span style="color:#75715e"># 前処理&lt;/span>
+text &lt;span style="color:#f92672">=&lt;/span> preprocess(text)
+&lt;span style="color:#75715e"># 文単位に分割&lt;/span>
+sentences &lt;span style="color:#f92672">=&lt;/span> split_to_sentences(text)
+&lt;span style="color:#75715e"># BERTトークン化&lt;/span>
+encoded &lt;span style="color:#f92672">=&lt;/span> tokenizer&lt;span style="color:#f92672">.&lt;/span>batch_encode_plus(
+sentences, padding&lt;span style="color:#f92672">=&lt;/span>True, add_special_tokens&lt;span style="color:#f92672">=&lt;/span>True
+)
+&lt;span style="color:#75715e"># BERTトークンID列を抽出&lt;/span>
+input_ids &lt;span style="color:#f92672">=&lt;/span> torch&lt;span style="color:#f92672">.&lt;/span>tensor(encoded[&lt;span style="color:#e6db74">&amp;#34;input_ids&amp;#34;&lt;/span>], device&lt;span style="color:#f92672">=&lt;/span>device)
+&lt;span style="color:#75715e"># BERTの最大許容トークン数が512なので超える場合は切り詰める&lt;/span>
+input_ids &lt;span style="color:#f92672">=&lt;/span> input_ids[:, :&lt;span style="color:#ae81ff">512&lt;/span>]
+&lt;span style="color:#66d9ef">with&lt;/span> torch&lt;span style="color:#f92672">.&lt;/span>no_grad(): &lt;span style="color:#75715e"># 勾配計算なし&lt;/span>
+&lt;span style="color:#75715e"># 単語ベクトルを計算&lt;/span>
+outputs &lt;span style="color:#f92672">=&lt;/span> model(input_ids)
+&lt;span style="color:#75715e"># 最終層の隠れ状態ベクトルを取得&lt;/span>
+last_hidden_states &lt;span style="color:#f92672">=&lt;/span> outputs[&lt;span style="color:#ae81ff">0&lt;/span>]
+&lt;span style="color:#75715e"># 各文における[CLS]トークンの単語ベクトルを抽出（これを文ベクトルとみなす）&lt;/span>
+vecs &lt;span style="color:#f92672">=&lt;/span> last_hidden_states[:, &lt;span style="color:#ae81ff">0&lt;/span>, :]
+&lt;span style="color:#75715e"># 文ベクトルから文章ベクトルを計算&lt;/span>
+vec &lt;span style="color:#f92672">=&lt;/span> convert_to_single_embedding(vecs)
+&lt;span style="color:#75715e"># 保存容量削減のため型変換&lt;/span>
+vec &lt;span style="color:#f92672">=&lt;/span> vec&lt;span style="color:#f92672">.&lt;/span>type(torch&lt;span style="color:#f92672">.&lt;/span>float16)
+&lt;span style="color:#75715e"># データをgpuからcpuに載せ替え&lt;/span>
+vec &lt;span style="color:#f92672">=&lt;/span> vec&lt;span style="color:#f92672">.&lt;/span>cpu()
+&lt;span style="color:#75715e"># numpy配列に変換&lt;/span>
+vec &lt;span style="color:#f92672">=&lt;/span> vec&lt;span style="color:#f92672">.&lt;/span>numpy()
+&lt;span style="color:#66d9ef">return&lt;/span> vec
+&lt;span style="color:#66d9ef">if&lt;/span> __name__ &lt;span style="color:#f92672">==&lt;/span> &lt;span style="color:#e6db74">&amp;#34;__main__&amp;#34;&lt;/span>:
+text &lt;span style="color:#f92672">=&lt;/span> &lt;span style="color:#e6db74">&amp;#34;&amp;#34;&amp;#34;
+&lt;/span>&lt;span style="color:#e6db74">夏目 漱石（なつめ そうせき、1867年2月9日〈慶応3年1月5日〉 - 1916年〈大正5年〉12月9日）は、日本の小説家、評論家、英文学者、俳人。本名は夏目 金之助（なつめ きんのすけ）。俳号は愚陀仏。明治末期から大正初期にかけて活躍した近代日本文学の頂点に立つ作家の一人である。代表作は『吾輩は猫である』『坊っちゃん』『三四郎』『それから』『こゝろ』『明暗』など。明治の文豪として日本の千円紙幣の肖像にもなり、講演録「私の個人主義」も知られている。漱石の私邸に門下生が集った会は木曜会と呼ばれた。
+&lt;/span>&lt;span style="color:#e6db74">江戸の牛込馬場下横町（現在の東京都新宿区喜久井町）出身。大学時代に正岡子規と出会い、俳句を学ぶ。帝国大学（のちの東京帝国大学、現在の東京大学）英文科卒業後、松山で愛媛県尋常中学校教師、熊本で第五高等学校教授などを務めたあと、イギリスへ留学。帰国後は東京帝国大学講師として英文学を講じ、講義録には『文学論』がある。
+&lt;/span>&lt;span style="color:#e6db74">講師の傍ら『吾輩は猫である』を雑誌『ホトトギス』に発表。これが評判になり『坊っちゃん』『倫敦塔』などを書く。その後朝日新聞社に入社し、『虞美人草』『三四郎』『それから』などを掲載。当初は余裕派と呼ばれた。「修善寺の大患」後は、『行人』『こゝろ』『道草』などを執筆。「則天去私（そくてんきょし）」の境地に達したといわれる。晩年は胃潰瘍に悩まされ、『明暗』が絶筆となった。
+&lt;/span>&lt;span style="color:#e6db74">&amp;#34;&amp;#34;&amp;#34;&lt;/span>
+vec &lt;span style="color:#f92672">=&lt;/span> embedding(text)
+p(vec&lt;span style="color:#f92672">.&lt;/span>shape)
+p(vec&lt;span style="color:#f92672">.&lt;/span>dtype)
+p(vec)
+&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="サンプルコードの実行">サンプルコードの実行&lt;/h2>
+&lt;div class="highlight">&lt;pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-sh" data-lang="sh">$ python main.py
+False
+device&lt;span style="color:#f92672">(&lt;/span>type&lt;span style="color:#f92672">=&lt;/span>&lt;span style="color:#e6db74">&amp;#39;cpu&amp;#39;&lt;/span>&lt;span style="color:#f92672">)&lt;/span>
+&lt;span style="color:#f92672">(&lt;/span>768,&lt;span style="color:#f92672">)&lt;/span>
+dtype&lt;span style="color:#f92672">(&lt;/span>&lt;span style="color:#e6db74">&amp;#39;float16&amp;#39;&lt;/span>&lt;span style="color:#f92672">)&lt;/span>
+array&lt;span style="color:#f92672">([&lt;/span>-5.4688e-01, 1.4075e-01, 7.9041e-02, -2.6953e-01, -5.0928e-01,
+-1.0242e-01, 1.6895e-01, -2.8857e-01, 7.5562e-02, 9.1553e-01,
+-6.5381e-01, 5.4291e-02, -7.4316e-01, -4.7705e-01, 1.0422e-02,
+8.3154e-01, -2.1167e-01, 3.9368e-02, -2.1436e-01, 5.9717e-01,
+-2.8442e-01, 8.2227e-01, -1.0059e+00, 1.9397e-01, -7.9834e-01,
+3.5278e-01, 1.8774e-01, -8.7463e-02, 1.1841e-01, -8.0444e-02,
+-6.6309e-01, 6.1475e-01, -2.9321e-01, -6.1920e-02, 3.2910e-01,
+7.4707e-01, 1.7859e-01, -2.7124e-01, -5.4932e-01, 2.0850e-01,
+2.3767e-01, 6.2646e-01, 2.5000e-01, -3.1714e-01, 1.4368e-01,
+1.2596e-02, 5.3772e-02, -1.5762e-02, 6.9922e-01, -5.2551e-02,
+-6.6223e-02, 2.2522e-02, 1.4189e+00, -4.7333e-02, -5.6787e-01,
+1.6443e-01, -2.0126e-02, -1.6357e-01, -1.3257e-01, -5.1562e-01,
+-1.7725e-01, -5.4932e-01, 1.4319e-01, -2.7759e-01, -4.9438e-01,
+-2.8613e-01, 2.7676e-03, 3.7939e-01, 1.2588e+00, 1.2439e-01,
+-3.6865e-01, -2.4243e-01, 4.6289e-01, -3.5889e-01, -5.6299e-01,
+8.9035e-03, -3.1885e-01, -8.3691e-01, 1.6003e-03, 1.0137e+00,
+-5.8936e-01, 1.3672e-01, -3.3228e-01, -7.9346e-01, -1.3351e-02,
+-8.2568e-01, -3.7811e-02, 3.0566e-01, -2.4866e-01, 4.4525e-02,
+-1.0266e-01, -2.4219e-01, 3.0579e-02, 3.1030e-01, 8.7256e-01,
+1.2781e-01, -6.3416e-02, 6.9092e-01, 5.0903e-02, -3.3740e-01,
+-1.0968e-01, -9.3066e-01, -1.9873e-01, 3.1226e-01, -7.6367e-01,
+-1.0186e+00, 8.5815e-02, -1.1270e+00, 1.0278e-01, 9.2432e-01,
+2.3364e-01, -5.6366e-02, -3.9478e-01, -1.5015e-01, 1.2512e-01,
+4.7925e-01, -7.0947e-01, 2.9150e-01, 2.7490e-01, -4.1064e-01,
+1.5796e-01, -3.5254e-01, 2.1155e-01, -3.9526e-01, 6.4307e-01,
+-2.8711e-01, 5.2393e-01, -2.6465e-01, -3.6694e-01, 7.3486e-02,
+3.4302e-01, -4.1846e-01, -7.8076e-01, 7.9395e-01, 3.9014e-01,
+2.8296e-01, -4.0039e-02, 5.6885e-01, -8.7109e-01, 2.2876e-01,
+2.4414e-02, -3.1665e-01, -2.6831e-01, 1.2415e-01, 3.2275e-01,
+3.2959e-02, -1.1066e-01, 3.7256e-01, 1.3135e-01, 2.9297e-01,
+-4.4214e-01, 7.2900e-01, 7.2119e-01, 4.5996e-01, 3.5107e-01,
+-3.4937e-01, -4.0918e-01, 9.6826e-01, -4.3274e-02, -5.6006e-01,
+2.8857e-01, -2.8271e-01, 1.4453e-01, -1.0869e+00, 1.5979e-01,
+-3.5181e-01, 9.7021e-01, -2.2424e-01, 7.4585e-02, 3.3618e-01,
+2.9102e-01, -6.3354e-02, 4.0015e-01, -3.4576e-02, -2.2583e-01,
+-8.6914e-01, -1.7456e-01, 1.4368e-01, 3.0014e-02, 1.7834e-01,
+4.2041e-01, 6.1768e-01, -2.4146e-01, 1.6370e-01, 3.9819e-01,
+1.5778e-02, 4.4360e-01, -4.7119e-01, 4.1650e-01, 8.9966e-02,
+3.3154e-01, -1.7371e-01, 6.7578e-01, 4.5532e-01, -1.4832e-01,
+-2.7881e-01, 8.3496e-01, -5.9082e-01, -8.0078e-01, 4.2664e-02,
+3.8892e-01, 2.3056e-02, -8.2959e-01, -7.8906e-01, 1.5002e-01,
+6.9336e-01, 3.6743e-02, -8.3789e-01, 1.1517e-01, 5.1660e-01,
+-3.6060e-01, -9.2139e-01, 2.0752e-01, -1.2286e-01, 4.0283e-01,
+-1.3159e-01, -9.4678e-01, -4.0845e-01, 1.2494e-01, -1.0425e-01,
+6.4209e-01, -7.2412e-01, -6.9336e-01, -2.8418e-01, -3.4644e-01,
+4.6045e-01, 5.7892e-02, 1.1621e-01, 5.8301e-01, 4.6069e-01,
+-8.6816e-01, -4.5703e-01, 6.5186e-01, -5.1300e-02, -2.2363e-01,
+-2.7612e-01, 3.1592e-01, -8.6572e-01, 3.7524e-01, -1.3229e-02,
+-4.5605e-01, 4.4751e-01, -6.5552e-02, 5.8008e-01, 1.4453e-01,
+-1.1029e-01, 1.0205e-01, -1.7493e-01, 1.5503e-01, 5.3613e-01,
+6.8262e-01, -6.9189e-01, 1.6342e-02, 2.3132e-01, -3.0078e-01,
+-2.4841e-01, -2.4170e-01, 2.2644e-02, -1.2047e-02, 1.7212e-01,
+-5.6122e-02, -3.2593e-01, -9.6826e-01, -1.6553e-01, -8.1592e-01,
+-2.4451e-01, -2.2107e-01, 2.1875e-01, 3.4473e-01, -2.9370e-01,
+1.8909e-01, 1.6220e-02, 1.6565e-01, 5.1318e-01, -7.9688e-01,
+3.3936e-01, 1.1836e+00, -1.5247e-01, 9.7021e-01, 1.0938e+00,
+3.0664e-01, 6.7871e-01, -7.2998e-01, -2.6636e-01, -6.8555e-01,
+-6.4014e-01, 1.2793e-01, 5.9174e-02, 5.8411e-02, -1.6333e-01,
+3.5840e-01, -1.9928e-02, 2.8900e-02, -1.5381e-01, -3.4668e-01,
+-6.6016e-01, 1.9196e-02, -9.9365e-02, -4.1284e-01, 4.4922e-01,
+-1.7053e-01, -4.4897e-01, 3.5645e-01, 1.0225e+00, -1.2041e+00,
+-1.5149e-01, 2.5195e-01, -3.1787e-01, 7.2876e-02, -6.7969e-01,
+1.7310e-01, 1.9092e-01, 3.0823e-02, -3.8672e-01, 7.6221e-01,
+-6.1670e-01, 4.3732e-02, 2.3483e-02, 2.1716e-01, -1.0883e-01,
+-3.9429e-01, -1.4514e-01, -1.7444e-01, -4.2999e-02, -5.9619e-01,
+1.1377e+00, 3.2007e-01, 4.5166e-01, -5.6592e-01, -3.8116e-02,
+7.8552e-02, 1.2720e-01, 3.9160e-01, 2.5806e-01, 1.6309e-01,
+-2.9199e-01, -5.6787e-01, -5.8154e-01, -1.1818e-02, 8.5938e-01,
+1.2695e-01, 2.2314e-01, 2.0117e-01, -9.1797e-01, 4.2114e-01,
+-2.2507e-02, -9.3115e-01, -6.7932e-02, -7.4658e-01, -7.4316e-01,
+2.6025e-01, -4.9976e-01, -4.0381e-01, -6.0156e-01, 2.8882e-01,
+-1.5393e-01, 2.0740e-01, -5.9375e-01, 6.1230e-01, -8.3105e-01,
+-5.3345e-02, 6.4258e-01, -5.1416e-01, 4.5361e-01, 9.1064e-01,
+2.2656e-01, -7.7820e-02, -6.2061e-01, -3.1201e-01, -3.1372e-01,
+5.0049e-01, -5.8289e-02, 6.1646e-02, -2.0032e-01, -2.7612e-01,
+-1.8713e-01, 1.1143e+00, 4.8853e-01, 3.9819e-01, 8.3838e-01,
+7.1030e-03, -2.8711e-01, -6.0303e-01, -6.9336e-02, 3.3643e-01,
+-9.8975e-01, -1.0796e-02, 1.4030e-02, -1.5149e-01, -2.6147e-01,
+-1.9287e-01, 6.1084e-01, 4.0454e-01, 2.7026e-01, 8.2703e-02,
+-7.4365e-01, 8.7793e-01, -1.3562e-01, 6.6211e-01, -3.2806e-02,
+1.4441e-01, -4.4824e-01, 2.1521e-01, 1.0370e-01, -1.0175e-01,
+1.6586e-02, 4.8401e-02, 6.0211e-02, -1.9653e-01, 1.4246e-01,
+4.7729e-01, 5.9180e-01, -7.0117e-01, 6.0400e-01, -5.7764e-01,
+-2.0471e-01, -4.1504e-02, 1.3708e-01, -4.4482e-01, -2.3186e-05,
+5.1074e-01, -5.8691e-01, 5.4077e-02, -9.3628e-02, 9.9426e-02,
+9.4336e-01, -1.5759e-01, -5.2490e-01, 5.3680e-02, 3.4332e-02,
+-6.4941e-01, -2.4402e-01, 4.3457e-01, -2.8394e-01, 1.5784e-01,
+2.5439e-01, -7.0068e-01, 1.4624e-01, 2.5513e-02, -2.4731e-01,
+-5.0195e-01, -3.5815e-01, 5.5322e-01, 3.7695e-01, -1.2634e-01,
+-5.0977e-01, -2.0557e-01, 1.7627e-01, -2.8931e-01, -1.3525e-01,
+3.0298e-01, 3.4692e-01, -1.6467e-01, -2.4792e-01, 3.0029e-01,
+1.4478e-01, -4.6484e-01, -2.7808e-01, -2.1753e-01, 3.3740e-01,
+7.0984e-02, -5.6038e-03, 7.2670e-03, -7.8760e-01, -1.9550e-03,
+-2.7686e-01, 7.3926e-01, -5.1562e-01, 6.5674e-01, 4.8193e-01,
+-2.4146e-01, -2.1408e-02, -2.2058e-01, 6.1670e-01, -3.2007e-01,
+8.0078e-01, -1.4004e+00, 9.3701e-01, 2.0361e-01, -3.9111e-01,
+8.2910e-01, -4.4464e-02, 3.5675e-02, 6.7773e-01, 4.6436e-01,
+8.1104e-01, 1.5266e-02, -6.2793e-01, -1.1260e+00, 7.9980e-01,
+-5.0684e-01, -2.3962e-01, -5.8008e-01, 4.8022e-01, -2.6611e-01,
+-3.3496e-01, 3.3008e-01, -2.8149e-01, 3.7793e-01, 3.7769e-01,
+-2.3157e-01, 1.5625e-01, 1.4062e-01, -2.8955e-01, -2.6001e-01,
+3.8013e-01, 2.0227e-01, 3.1177e-01, 1.5198e-01, -1.9702e-01,
+-3.5864e-01, -1.8530e-01, -3.2666e-01, -5.0146e-01, -1.0361e+00,
+2.2119e-01, -2.9272e-01, -9.1016e-01, -4.1211e-01, 2.7051e-01,
+-3.1982e-01, -3.5474e-01, 4.7729e-02, 2.1265e-01, -1.3702e-02,
+-5.0415e-02, 5.0507e-02, -5.3418e-01, 2.3291e-01, -4.1211e-01,
+6.6699e-01, 5.8044e-02, 1.5747e-01, -1.5881e-01, 5.0195e-01,
+1.5845e-01, -7.2403e-03, 9.0430e-01, 2.8003e-01, 4.1309e-01,
+-7.1436e-01, -1.5356e-01, 1.8665e-01, 3.3716e-01, -5.4297e-01,
+1.2512e-01, -1.2708e-01, -4.1016e-01, -7.9541e-01, -2.9028e-01,
+-5.0830e-01, -7.9163e-02, 1.1920e-01, 3.9307e-01, -7.4658e-01,
+5.2930e-01, -2.9175e-01, 1.9800e-01, 2.1777e-01, -4.3915e-02,
+3.5254e-01, 3.6792e-01, 5.9375e-01, 1.7847e-01, 1.9556e-01,
+7.0166e-01, 4.4092e-01, 7.6233e-02, -6.0638e-02, 4.5280e-03,
+-1.1121e-01, -1.4197e-01, 4.1943e-01, 1.1309e+00, 2.8613e-01,
+-3.4937e-01, 4.8065e-02, -1.5430e-01, 6.5234e-01, -1.1641e+00,
+2.3376e-01, -4.0747e-01, -5.0598e-02, 1.4148e-01, -3.1836e-01,
+6.0938e-01, 6.2061e-01, 1.2217e+00, -3.8770e-01, 3.7329e-01,
+-1.4270e-01, 2.7539e-01, 1.9080e-01, 1.0266e-01, -1.1024e-02,
+-7.5684e-01, -1.0876e-01, 2.3633e-01, 3.9600e-01, -3.2617e-01,
+6.0693e-01, 5.8496e-01, 2.0947e-01, -4.9652e-02, -1.2103e-01,
+8.1848e-02, 2.7393e-01, 4.7046e-01, 9.0332e-01, -6.5308e-02,
+5.7764e-01, -1.1963e+00, 2.0386e-01, 2.3145e-01, -5.4004e-01,
+-2.8125e-01, 1.4807e-01, 8.4609e+00, 6.2109e-01, 1.7688e-01,
+9.4971e-02, 5.4932e-01, -9.3311e-01, -2.1484e-01, -1.1292e-01,
+-3.2544e-01, 2.2778e-01, -5.9723e-02, -4.4067e-01, -6.0596e-01,
+4.2725e-01, -4.3945e-01, 6.8457e-01, 1.5833e-01, -1.6815e-02,
+3.9844e-01, 2.5562e-01, 3.9307e-01, -6.8311e-01, -4.6094e-01,
+-4.4971e-01, -6.0547e-01, 9.3311e-01, -5.2734e-01, 9.0039e-01,
+3.1812e-01, 9.3457e-01, -2.2327e-01, -2.1899e-01, 9.3811e-02,
+1.7517e-01, 4.9756e-01, 4.9512e-01, 8.8330e-01, 8.7354e-01,
+1.4673e-01, -1.9482e-01, 1.5466e-01, 2.1576e-02, -4.9957e-02,
+1.9836e-01, 7.1436e-01, -5.2588e-01, -7.4072e-01, -4.6997e-01,
+-1.2054e-01, 3.1934e-01, -7.5073e-02, 2.1631e-01, 1.3984e+00,
+-9.0576e-02, -7.9443e-01, -1.4600e-01, -2.9663e-01, -3.3911e-01,
+-1.4275e-02, 1.0895e-01, 1.8884e-01, -2.2424e-01, -5.1855e-01,
+-2.8052e-01, -2.6074e-01, -9.8682e-01, -8.7070e-04, 5.3369e-01,
+-1.0669e-01, 1.5955e-01, 8.0957e-01, 3.0322e-01, -2.5488e-01,
+8.4424e-01, 8.0664e-01, -1.0293e+00, 5.8057e-01, 3.1433e-02,
+-5.6982e-01, 5.9082e-01, 9.5703e-02, 3.5547e-01, -4.1577e-01,
+-6.2012e-01, -5.7861e-01, -8.9035e-03, -4.6729e-01, -1.1755e-01,
+-1.3574e-01, 4.1699e-01, -7.4280e-02, 7.5488e-01, 6.2744e-01,
+2.6416e-01, -3.5132e-01, 1.1700e-01, 4.9170e-01, -9.2041e-01,
+1.3940e-01, 2.4670e-01, 2.2058e-01, 7.2510e-01, -1.5002e-01,
+3.3472e-01, -4.3262e-01, -4.7150e-02, -5.8252e-01, 2.1130e-01,
+-6.5332e-01, 2.4158e-01, -1.8726e-01, -1.8457e-01, 6.2207e-01,
+-5.4346e-01, -2.9468e-01, 1.2915e-01, -1.8860e-01, 4.5801e-01,
+4.2017e-01, 1.3242e+00, -5.4102e-01, 3.8257e-01, -2.8442e-01,
+3.6768e-01, 3.2764e-01, -3.5156e-01, 4.7668e-02, 5.5408e-04,
+-9.4189e-01, -1.3879e-01, 4.5386e-01, -4.7827e-01, -1.1816e+00,
+-8.3557e-02, -9.7961e-02, 1.0518e+00, -3.6743e-02, -3.5718e-01,
+-8.8672e-01, -1.8799e-01, 1.3843e-01, -2.6196e-01, -5.1971e-02,
+3.7140e-02, 3.7384e-02, -2.2202e-02, -7.2705e-01, -2.5684e-01,
+-3.5034e-01, -1.1826e+00, 4.4891e-02&lt;span style="color:#f92672">]&lt;/span>, dtype&lt;span style="color:#f92672">=&lt;/span>float16&lt;span style="color:#f92672">)&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div></description></item><item><title>Hugo と GitHub Pages で技術ブログ【Google Analytics V4 対応】</title><link>https://rema424.github.io/remalab/posts/hugo-getting-started/</link><pubDate>Sat, 31 Oct 2020 16:03:00 +0900</pubDate><guid>https://rema424.github.io/remalab/posts/hugo-getting-started/</guid><description>&lt;h2 id="toc">TOC&lt;/h2>
+&lt;ul>
+&lt;li>Getting Started&lt;/li>
+&lt;li>Host on GitHub&lt;/li>
+&lt;li>Google Analytics&lt;/li>
+&lt;li>Google Search Console&lt;/li>
+&lt;li>Privacy Policy&lt;/li>
+&lt;/ul>
+&lt;h2 id="getting-started">Getting Started&lt;/h2>
+&lt;h3 id="インストール">インストール&lt;/h3>
+&lt;div class="highlight">&lt;pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-sh" data-lang="sh">&lt;span style="color:#75715e"># インストール&lt;/span>
+brew install hugo
+&lt;span style="color:#75715e"># バージョン確認&lt;/span>
+hugo version
+&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="プロジェクト作成">プロジェクト作成&lt;/h3>
+&lt;div class="highlight">&lt;pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-sh" data-lang="sh">hugo new site &amp;lt;your-project-name&amp;gt;
+&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="テーマの設定">テーマの設定&lt;/h3>
+&lt;div class="highlight">&lt;pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-sh" data-lang="sh">&lt;span style="color:#75715e"># ディレクトリ移動&lt;/span>
+cd &amp;lt;your-project-name&amp;gt;
+&lt;span style="color:#75715e"># git 初期化&lt;/span>
+git init
+&lt;span style="color:#75715e"># テーマの追加（今回は Anubis を使用）&lt;/span>
+git submodule add https://github.com/mitrichius/hugo-theme-anubis.git themes/anubis
+&lt;span style="color:#75715e"># 設定ファイルにテーマを追加&lt;/span>
+echo &lt;span style="color:#e6db74">&amp;#39;theme = &amp;#34;anubis&amp;#34;&amp;#39;&lt;/span> &amp;gt;&amp;gt; config.toml
+&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="記事の作成">記事の作成&lt;/h3>
+&lt;div class="highlight">&lt;pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-sh" data-lang="sh">hugo new &amp;lt;section&amp;gt;/&amp;lt;article-title&amp;gt;.md
+&lt;span style="color:#75715e"># =&amp;gt; content/&amp;lt;section&amp;gt;/&amp;lt;argicle-title&amp;gt;.md が生成される&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="ローカルサーバーの起動">ローカルサーバーの起動&lt;/h3>
+&lt;div class="highlight">&lt;pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-sh" data-lang="sh">&lt;span style="color:#75715e"># サーバー起動（ドラフトも表示）&lt;/span>
+hugo server -D
+&lt;span style="color:#75715e"># ブラウザで表示&lt;/span>
+open http://localhost:1313
+&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="設定ファイルの編集">設定ファイルの編集&lt;/h3>
+&lt;p>お好みですが、&lt;code>toml&lt;/code> から &lt;code>yaml&lt;/code> に変更します。&lt;/p>
+&lt;div class="highlight">&lt;pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-sh" data-lang="sh">mv config.toml config.yaml
+&lt;/code>&lt;/pre>&lt;/div>&lt;p>中身を編集します。&lt;/p>
+&lt;div class="highlight">&lt;pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="color:#75715e"># config.yaml&lt;/span>
+&lt;span style="color:#f92672">baseURL&lt;/span>: &lt;span style="color:#e6db74">&amp;#34;http://example.org/&amp;#34;&lt;/span>
+&lt;span style="color:#f92672">languageCode&lt;/span>: &lt;span style="color:#ae81ff">ja-jp&lt;/span>
+&lt;span style="color:#f92672">title&lt;/span>: &lt;span style="color:#ae81ff">RemaLab&lt;/span>
+&lt;span style="color:#f92672">theme&lt;/span>: &lt;span style="color:#ae81ff">anubis&lt;/span>
+&lt;span style="color:#f92672">publishDir&lt;/span>: &lt;span style="color:#ae81ff">docs&lt;/span>
+&lt;span style="color:#f92672">enableRobotsTXT&lt;/span>: &lt;span style="color:#66d9ef">true&lt;/span>
+&lt;span style="color:#f92672">hasCJKLanguage&lt;/span>: &lt;span style="color:#66d9ef">true&lt;/span>
+&lt;span style="color:#f92672">summaryLength&lt;/span>: &lt;span style="color:#ae81ff">100&lt;/span>
+&lt;span style="color:#f92672">params&lt;/span>:
+&lt;span style="color:#f92672">author&lt;/span>: &lt;span style="color:#ae81ff">rema&lt;/span>
+&lt;span style="color:#f92672">description&lt;/span>: &lt;span style="color:#e6db74">&amp;#39;&amp;#39;&lt;/span>
+&lt;span style="color:#f92672">readMore&lt;/span>: &lt;span style="color:#66d9ef">false&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="ビルド">ビルド&lt;/h3>
+&lt;div class="highlight">&lt;pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-sh" data-lang="sh">&lt;span style="color:#75715e"># ドラフトも含める場合&lt;/span>
+hugo -D
+&lt;span style="color:#75715e"># ドラフトを含めない場合&lt;/span>
+hugo
+&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="host-on-github">Host on GitHub&lt;/h2>
+&lt;h3 id="リモートリポジトリの作成">リモートリポジトリの作成&lt;/h3>
+&lt;p>GitHub で新規プロジェクトを作成します（今回は remalab で作成）。&lt;/p>
+&lt;p>リモートリポジトリが作成できたら push します。&lt;/p>
+&lt;div class="highlight">&lt;pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-sh" data-lang="sh">&lt;span style="color:#75715e"># 変更をステージ&lt;/span>
+git add .
+&lt;span style="color:#75715e"># コミット&lt;/span>
+git commit -m &lt;span style="color:#e6db74">&amp;#34;first commit&amp;#34;&lt;/span>
+&lt;span style="color:#75715e"># リモートリポジトリの追加&lt;/span>
+git remote add origin https://github.com/rema424/remalab.git
+&lt;span style="color:#75715e"># ブランチの切替&lt;/span>
+git branch -M main
+&lt;span style="color:#75715e"># puch&lt;/span>
+git push -u origin main
+&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="設定ファイルの編集-1">設定ファイルの編集&lt;/h3>
+&lt;p>GitHub Pages には &lt;strong>User/Organization Pages&lt;/strong> と &lt;strong>Project Pages&lt;/strong> の 2 タイプがあります。&lt;/p>
+&lt;p>今回は &lt;strong>Project Pages&lt;/strong> を採用します。&lt;/p>
+&lt;pre>&lt;code>https://&amp;lt;username&amp;gt;.github.io/&amp;lt;project&amp;gt;/
+&lt;/code>&lt;/pre>&lt;div class="highlight">&lt;pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="color:#75715e"># config.yaml&lt;/span>
+&lt;span style="color:#f92672">baseURL&lt;/span>: &lt;span style="color:#ae81ff">https://rema424.github.io/remalab/&lt;/span>
+&lt;span style="color:#f92672">publishDir&lt;/span>: &lt;span style="color:#ae81ff">docs&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="github-の設定変更">GitHub の設定変更&lt;/h3>
+&lt;p>GitHub &amp;gt; Project &amp;gt; Settings &amp;gt; GitHub Pages より設定を変更します。&lt;/p>
+&lt;div class="highlight">&lt;pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="color:#f92672">Source&lt;/span>:
+&lt;span style="color:#f92672">branch&lt;/span>: &lt;span style="color:#ae81ff">main&lt;/span>
+&lt;span style="color:#f92672">folder&lt;/span>: &lt;span style="color:#ae81ff">/docs&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="ローカルサーバーの起動-1">ローカルサーバーの起動&lt;/h3>
+&lt;p>設定を変更したため、一度ローカルで確認します。&lt;/p>
+&lt;div class="highlight">&lt;pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-sh" data-lang="sh">&lt;span style="color:#75715e"># サーバー起動（ドラフトも表示）&lt;/span>
+hugo server -D
+&lt;span style="color:#75715e"># =&amp;gt; 設定変更により TOP が localhost:1313/ から localhost:1313/remalab/ へ&lt;/span>
+&lt;span style="color:#75715e"># ブラウザで表示&lt;/span>
+open http://localhost:1313/remalab/
+&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="再ビルド">再ビルド&lt;/h3>
+&lt;div class="highlight">&lt;pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-sh" data-lang="sh">&lt;span style="color:#75715e"># 既存のビルド先ディレクトリを削除&lt;/span>
+rm -r public
+&lt;span style="color:#75715e"># ビルド（テストのためドラフトも含む）&lt;/span>
+hugo -D
+&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="デプロイ">デプロイ&lt;/h3>
+&lt;div class="highlight">&lt;pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-sh" data-lang="sh">git add .
+git commit -m &lt;span style="color:#e6db74">&amp;#34;first deploy&amp;#34;&lt;/span>
+git push
+&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="確認">確認&lt;/h3>
+&lt;div class="highlight">&lt;pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-sh" data-lang="sh">open https://rema424.github.io/remalab/
+&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="google-analytics">Google Analytics&lt;/h2>
+&lt;h3 id="google-analytics-プロパティの作成">Google Analytics プロパティの作成&lt;/h3>
+&lt;p>Google Analytics アカウントを未所持の場合は作成します。&lt;/p>
+&lt;p>アカウントが準備できたらプロパティを作成します。&lt;/p>
+&lt;div class="highlight">&lt;pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-yml" data-lang="yml">&lt;span style="color:#f92672">プロパティ名&lt;/span>: &lt;span style="color:#ae81ff">remalab&lt;/span>
+&lt;span style="color:#f92672">レポートのタイムゾーン&lt;/span>: &lt;span style="color:#ae81ff">日本&lt;/span>
+&lt;span style="color:#f92672">通貨&lt;/span>: &lt;span style="color:#ae81ff">日本円&lt;/span>
+&lt;span style="color:#f92672">業種&lt;/span>: &lt;span style="color:#ae81ff">Computers &amp;amp; Electronics&lt;/span>
+&lt;span style="color:#f92672">ビジネスの規模&lt;/span>: &lt;span style="color:#ae81ff">小規模&lt;/span>
+&lt;span style="color:#f92672">利用目的&lt;/span>: &lt;span style="color:#ae81ff">サイトまたはアプリでの顧客エンゲージメントを測定する&lt;/span>
+&lt;span style="color:#f92672">Choose a platform&lt;/span>: &lt;span style="color:#ae81ff">ウェブ&lt;/span>
+&lt;span style="color:#f92672">ウェブサイトのURL&lt;/span>: &lt;span style="color:#ae81ff">https://rema424.github.io/remalab/&lt;/span>
+&lt;span style="color:#f92672">ストリーム名&lt;/span>: &lt;span style="color:#ae81ff">RemaLab&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>&lt;p>プロパティが作成できたら、[管理] &amp;gt; [プロパティ] &amp;gt; [データ設定] &amp;gt; [データ保持] からイベントデータ保持を14か月に変更しておきます。&lt;/p>
+&lt;h3 id="google-tag-manager-コンテナの作成">Google Tag Manager コンテナの作成&lt;/h3>
+&lt;p>Google Tag Manager アカウントを未所持の場合は作成します。&lt;/p>
+&lt;p>アカウントが準備できたらコンテナを作成します。&lt;/p>
+&lt;div class="highlight">&lt;pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-yml" data-lang="yml">&lt;span style="color:#f92672">コンテナ名&lt;/span>: &lt;span style="color:#ae81ff">remalab&lt;/span>
+&lt;span style="color:#f92672">ターゲットプラットフォーム&lt;/span>: &lt;span style="color:#ae81ff">ウェブ&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>&lt;p>コンテナを作成すると &lt;code>&amp;lt;head&amp;gt;&lt;/code> と &lt;code>&amp;lt;body&amp;gt;&lt;/code> に設置するスニペットが表示されるので控えておきます。（後で GTM ダッシュボード上で確認することもできます。）&lt;/p>
+&lt;h3 id="パーシャルの作成">パーシャルの作成&lt;/h3>
+&lt;p>GTM スニペットを設置するためのファイルを作成していきます。&lt;/p>
+&lt;div class="highlight">&lt;pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-sh" data-lang="sh">&lt;span style="color:#75715e"># ディレクトリの作成&lt;/span>
+mkdir -p layouts/partials/gtm/
+&lt;span style="color:#75715e"># ファイル作成&lt;/span>
+touch layouts/partials/gtm/head.html layouts/partials/gtm/body.html
+&lt;/code>&lt;/pre>&lt;/div>&lt;p>それぞれのファイルに控えておいた GTM スニペットを記載して保存します。&lt;/p>
+&lt;p>環境変数が &lt;code>production&lt;/code> の場合のみ、script を出力するようにします。&lt;/p>
+&lt;div class="highlight">&lt;pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-html" data-lang="html">&lt;span style="color:#75715e">&amp;lt;!-- layouts/partials/gtm/head.html --&amp;gt;&lt;/span>
+{{ if eq (getenv &amp;#34;HUGO_ENV&amp;#34;) &amp;#34;production&amp;#34; | or (eq .Site.Params.env &amp;#34;production&amp;#34;) }}
+&lt;span style="color:#75715e">&amp;lt;!-- Google Tag Manager --&amp;gt;&lt;/span>
+&amp;lt;&lt;span style="color:#f92672">script&lt;/span>&amp;gt;(&lt;span style="color:#66d9ef">function&lt;/span>(&lt;span style="color:#a6e22e">w&lt;/span>,&lt;span style="color:#a6e22e">d&lt;/span>,&lt;span style="color:#a6e22e">s&lt;/span>,&lt;span style="color:#a6e22e">l&lt;/span>,&lt;span style="color:#a6e22e">i&lt;/span>){&lt;span style="color:#a6e22e">w&lt;/span>[&lt;span style="color:#a6e22e">l&lt;/span>]&lt;span style="color:#f92672">=&lt;/span>&lt;span style="color:#a6e22e">w&lt;/span>[&lt;span style="color:#a6e22e">l&lt;/span>]&lt;span style="color:#f92672">||&lt;/span>[];&lt;span style="color:#a6e22e">w&lt;/span>[&lt;span style="color:#a6e22e">l&lt;/span>].&lt;span style="color:#a6e22e">push&lt;/span>({&lt;span style="color:#e6db74">&amp;#39;gtm.start&amp;#39;&lt;/span>&lt;span style="color:#f92672">:&lt;/span>
+&lt;span style="color:#66d9ef">new&lt;/span> Date().&lt;span style="color:#a6e22e">getTime&lt;/span>(),&lt;span style="color:#a6e22e">event&lt;/span>&lt;span style="color:#f92672">:&lt;/span>&lt;span style="color:#e6db74">&amp;#39;gtm.js&amp;#39;&lt;/span>});&lt;span style="color:#66d9ef">var&lt;/span> &lt;span style="color:#a6e22e">f&lt;/span>&lt;span style="color:#f92672">=&lt;/span>&lt;span style="color:#a6e22e">d&lt;/span>.&lt;span style="color:#a6e22e">getElementsByTagName&lt;/span>(&lt;span style="color:#a6e22e">s&lt;/span>)[&lt;span style="color:#ae81ff">0&lt;/span>],
+&lt;span style="color:#a6e22e">j&lt;/span>&lt;span style="color:#f92672">=&lt;/span>&lt;span style="color:#a6e22e">d&lt;/span>.&lt;span style="color:#a6e22e">createElement&lt;/span>(&lt;span style="color:#a6e22e">s&lt;/span>),&lt;span style="color:#a6e22e">dl&lt;/span>&lt;span style="color:#f92672">=&lt;/span>&lt;span style="color:#a6e22e">l&lt;/span>&lt;span style="color:#f92672">!=&lt;/span>&lt;span style="color:#e6db74">&amp;#39;dataLayer&amp;#39;&lt;/span>&lt;span style="color:#f92672">?&lt;/span>&lt;span style="color:#e6db74">&amp;#39;&amp;amp;l=&amp;#39;&lt;/span>&lt;span style="color:#f92672">+&lt;/span>&lt;span style="color:#a6e22e">l&lt;/span>&lt;span style="color:#f92672">:&lt;/span>&lt;span style="color:#e6db74">&amp;#39;&amp;#39;&lt;/span>;&lt;span style="color:#a6e22e">j&lt;/span>.&lt;span style="color:#66d9ef">async&lt;/span>&lt;span style="color:#f92672">=&lt;/span>&lt;span style="color:#66d9ef">true&lt;/span>;&lt;span style="color:#a6e22e">j&lt;/span>.&lt;span style="color:#a6e22e">src&lt;/span>&lt;span style="color:#f92672">=&lt;/span>
+&lt;span style="color:#e6db74">&amp;#39;https://www.googletagmanager.com/gtm.js?id=&amp;#39;&lt;/span>&lt;span style="color:#f92672">+&lt;/span>&lt;span style="color:#a6e22e">i&lt;/span>&lt;span style="color:#f92672">+&lt;/span>&lt;span style="color:#a6e22e">dl&lt;/span>;&lt;span style="color:#a6e22e">f&lt;/span>.&lt;span style="color:#a6e22e">parentNode&lt;/span>.&lt;span style="color:#a6e22e">insertBefore&lt;/span>(&lt;span style="color:#a6e22e">j&lt;/span>,&lt;span style="color:#a6e22e">f&lt;/span>);
+})(window,document,&lt;span style="color:#e6db74">&amp;#39;script&amp;#39;&lt;/span>,&lt;span style="color:#e6db74">&amp;#39;dataLayer&amp;#39;&lt;/span>,&lt;span style="color:#e6db74">&amp;#39;&amp;lt;your-container-id&amp;gt;&amp;#39;&lt;/span>);&amp;lt;/&lt;span style="color:#f92672">script&lt;/span>&amp;gt;
+&lt;span style="color:#75715e">&amp;lt;!-- End Google Tag Manager --&amp;gt;&lt;/span>
+{{ end }}
+&lt;/code>&lt;/pre>&lt;/div>&lt;div class="highlight">&lt;pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-html" data-lang="html">&lt;span style="color:#75715e">&amp;lt;!-- layouts/partials/gtm/body.html --&amp;gt;&lt;/span>
+{{ if eq (getenv &amp;#34;HUGO_ENV&amp;#34;) &amp;#34;production&amp;#34; | or (eq .Site.Params.env &amp;#34;production&amp;#34;) }}
+&lt;span style="color:#75715e">&amp;lt;!-- Google Tag Manager (noscript) --&amp;gt;&lt;/span>
+&amp;lt;&lt;span style="color:#f92672">noscript&lt;/span>&amp;gt;&amp;lt;&lt;span style="color:#f92672">iframe&lt;/span> &lt;span style="color:#a6e22e">src&lt;/span>&lt;span style="color:#f92672">=&lt;/span>&lt;span style="color:#e6db74">&amp;#34;https://www.googletagmanager.com/ns.html?id=&amp;lt;your-container-id&amp;gt;&amp;#34;&lt;/span>
+&lt;span style="color:#a6e22e">height&lt;/span>&lt;span style="color:#f92672">=&lt;/span>&lt;span style="color:#e6db74">&amp;#34;0&amp;#34;&lt;/span> &lt;span style="color:#a6e22e">width&lt;/span>&lt;span style="color:#f92672">=&lt;/span>&lt;span style="color:#e6db74">&amp;#34;0&amp;#34;&lt;/span> &lt;span style="color:#a6e22e">style&lt;/span>&lt;span style="color:#f92672">=&lt;/span>&lt;span style="color:#e6db74">&amp;#34;display:none;visibility:hidden&amp;#34;&lt;/span>&amp;gt;&amp;lt;/&lt;span style="color:#f92672">iframe&lt;/span>&amp;gt;&amp;lt;/&lt;span style="color:#f92672">noscript&lt;/span>&amp;gt;
+&lt;span style="color:#75715e">&amp;lt;!-- End Google Tag Manager (noscript) --&amp;gt;&lt;/span>
+{{ end }}
+&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="パーシャルの読み込み">パーシャルの読み込み&lt;/h3>
+&lt;p>テーマをカスタマイズしてGTMスニペットを配置していきます。&lt;/p>
+&lt;p>まずはベースファイルをテーマからプロジェクト側にコピーします。&lt;/p>
+&lt;div class="highlight">&lt;pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-sh" data-lang="sh">&lt;span style="color:#75715e"># ディレクトリ作成&lt;/span>
+mkdir layouts/_default/
+&lt;span style="color:#75715e"># ファイルコピー&lt;/span>
+cp themes/anubis/layouts/_default/baseof.html layouts/_default/baseof.html
+&lt;/code>&lt;/pre>&lt;/div>&lt;p>ファイルがコピーできたら中身を編集します。&lt;/p>
+&lt;div class="highlight">&lt;pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-html" data-lang="html">&lt;span style="color:#75715e">&amp;lt;!-- layouts/_default/baseof.html --&amp;gt;&lt;/span>
+&lt;span style="color:#75715e">&amp;lt;!DOCTYPE html&amp;gt;&lt;/span>
+{{ $dataTheme := &amp;#34;&amp;#34; }}
+{{ if eq site.Params.style &amp;#34;dark-without-switcher&amp;#34; }}
+{{ $dataTheme = &amp;#34;dark&amp;#34; }}
+{{ end }}
+&amp;lt;&lt;span style="color:#f92672">html&lt;/span> &lt;span style="color:#a6e22e">lang&lt;/span>&lt;span style="color:#f92672">=&lt;/span>&lt;span style="color:#e6db74">&amp;#34;{{ .Site.LanguageCode }}&amp;#34;&lt;/span> &lt;span style="color:#a6e22e">data-theme&lt;/span>&lt;span style="color:#f92672">=&lt;/span>&lt;span style="color:#e6db74">&amp;#34;{{ $dataTheme }}&amp;#34;&lt;/span>&amp;gt;
+&amp;lt;&lt;span style="color:#f92672">head&lt;/span>&amp;gt;
+{{ partial &amp;#34;gtm/head.html&amp;#34; . }} &lt;span style="color:#75715e">&amp;lt;!-- この行を追加 --&amp;gt;&lt;/span>
+{{ block &amp;#34;head&amp;#34; . }}
+{{ partial &amp;#34;head.html&amp;#34; . }}
+{{ end }}
+&amp;lt;/&lt;span style="color:#f92672">head&lt;/span>&amp;gt;
+&amp;lt;&lt;span style="color:#f92672">body&lt;/span>&amp;gt;
+{{ partial &amp;#34;gtm/body.html&amp;#34; . }} &lt;span style="color:#75715e">&amp;lt;!-- この行を追加 --&amp;gt;&lt;/span>
+&amp;lt;&lt;span style="color:#f92672">a&lt;/span> &lt;span style="color:#a6e22e">class&lt;/span>&lt;span style="color:#f92672">=&lt;/span>&lt;span style="color:#e6db74">&amp;#34;skip-main&amp;#34;&lt;/span> &lt;span style="color:#a6e22e">href&lt;/span>&lt;span style="color:#f92672">=&lt;/span>&lt;span style="color:#e6db74">&amp;#34;#main&amp;#34;&lt;/span>&amp;gt;{{ i18n &amp;#34;skipToContent&amp;#34; | humanize }}&amp;lt;/&lt;span style="color:#f92672">a&lt;/span>&amp;gt;
+&amp;lt;&lt;span style="color:#f92672">div&lt;/span> &lt;span style="color:#a6e22e">class&lt;/span>&lt;span style="color:#f92672">=&lt;/span>&lt;span style="color:#e6db74">&amp;#34;container&amp;#34;&lt;/span>&amp;gt;
+&amp;lt;&lt;span style="color:#f92672">header&lt;/span> &lt;span style="color:#a6e22e">class&lt;/span>&lt;span style="color:#f92672">=&lt;/span>&lt;span style="color:#e6db74">&amp;#34;common-header&amp;#34;&lt;/span>&amp;gt;
+{{ block &amp;#34;header&amp;#34; . }}
+{{ partial &amp;#34;header.html&amp;#34; . }}
+{{ end }}
+&amp;lt;/&lt;span style="color:#f92672">header&lt;/span>&amp;gt;
+&amp;lt;&lt;span style="color:#f92672">main&lt;/span> &lt;span style="color:#a6e22e">id&lt;/span>&lt;span style="color:#f92672">=&lt;/span>&lt;span style="color:#e6db74">&amp;#34;main&amp;#34;&lt;/span> &lt;span style="color:#a6e22e">tabindex&lt;/span>&lt;span style="color:#f92672">=&lt;/span>&lt;span style="color:#e6db74">&amp;#34;-1&amp;#34;&lt;/span>&amp;gt;
+{{ block &amp;#34;main&amp;#34; . }}{{ end }}
+&amp;lt;/&lt;span style="color:#f92672">main&lt;/span>&amp;gt;
+{{ block &amp;#34;footer&amp;#34; . }}
+{{ partial &amp;#34;footer.html&amp;#34; . }}
+{{ end }}
+&amp;lt;/&lt;span style="color:#f92672">div&lt;/span>&amp;gt;
+&amp;lt;/&lt;span style="color:#f92672">body&lt;/span>&amp;gt;
+&amp;lt;/&lt;span style="color:#f92672">html&lt;/span>&amp;gt;
+&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="確認-1">確認&lt;/h3>
+&lt;p>本番モードでローカルサーバーを起動してアクセスし、開発者ツールでスニペットが配置されているか確認します。&lt;/p>
+&lt;div class="highlight">&lt;pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-sh" data-lang="sh">HUGO_ENV&lt;span style="color:#f92672">=&lt;/span>production hugo server -D
+&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="gtm-の設定">GTM の設定&lt;/h3>
+&lt;p>Google Tag Manager のダッシュボードから変数の設定、タグの作成、公開を行います。&lt;/p>
+&lt;div class="highlight">&lt;pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="color:#f92672">Google Tab Manager&lt;/span>:
+&lt;span style="color:#f92672">コンテナ&lt;/span>:
+&lt;span style="color:#f92672">変数&lt;/span>:
+&lt;span style="color:#f92672">ユーザー定義変数&lt;/span>:
+- &lt;span style="color:#f92672">新規&lt;/span>:
+&lt;span style="color:#f92672">変数名&lt;/span>: &lt;span style="color:#ae81ff">GA&lt;/span>
+&lt;span style="color:#f92672">変数の設定&lt;/span>:
+&lt;span style="color:#f92672">変数のタイプ&lt;/span>: &lt;span style="color:#ae81ff">定数&lt;/span>
+&lt;span style="color:#f92672">値&lt;/span>: &lt;span style="color:#ae81ff">&amp;lt;Google Analyticsの測定ID&amp;gt;&lt;/span>
+&lt;span style="color:#f92672">タグ&lt;/span>:
+&lt;span style="color:#f92672">新規&lt;/span>:
+- &lt;span style="color:#f92672">タグ名&lt;/span>: &lt;span style="color:#ae81ff">Google アナリティクス GA4 設定&lt;/span>
+&lt;span style="color:#f92672">タグの設定&lt;/span>:
+&lt;span style="color:#f92672">タグタイプ&lt;/span>: &lt;span style="color:#ae81ff">Googleアナリティクス:GA4設定&lt;/span>
+&lt;span style="color:#f92672">測定ID&lt;/span>: {{&lt;span style="color:#ae81ff">GA}}&lt;/span>
+&lt;span style="color:#f92672">トリガー&lt;/span>: &lt;span style="color:#ae81ff">All Pages&lt;/span>
+&lt;span style="color:#f92672">公開&lt;/span>:
+&lt;span style="color:#f92672">送信設定&lt;/span>: &lt;span style="color:#ae81ff">バージョンの公開と作成&lt;/span>
+&lt;span style="color:#f92672">バージョン名&lt;/span>: &lt;span style="color:#ae81ff">GA4の設定追加&lt;/span>
+&lt;span style="color:#f92672">バージョンの説明&lt;/span>: &lt;span style="color:#e6db74">&amp;#39;&amp;#39;&lt;/span>
+&lt;span style="color:#f92672">環境への公開&lt;/span>: &lt;span style="color:#ae81ff">Live&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="確認-2">確認&lt;/h3>
+&lt;p>本番モードでローカルサーバーを起動してアクセスし、&lt;code>&amp;lt;head&amp;gt;&lt;/code> 内に gtag があることを確認します。&lt;/p>
+&lt;pre>&lt;code>&amp;lt;script type=&amp;quot;text/javascript&amp;quot; async=&amp;quot;&amp;quot; src=&amp;quot;http://www.googletagmanager.com/gtag/js?id=&amp;lt;測定ID&amp;gt;&amp;amp;l=dataLayer&amp;amp;cx=c&amp;quot;&amp;gt;&amp;lt;/script&amp;gt;
+&lt;/code>&lt;/pre>&lt;p>次に Google Analytics のダッシュボードを開き、リアルタイムタブで自分のアクセスが計測されていることを確認します。&lt;/p>
+&lt;h2 id="google-search-console">Google Search Console&lt;/h2>
+&lt;h3 id="本番モードでデプロイ">本番モードでデプロイ&lt;/h3>
+&lt;p>ウェブサイトの所有確認に Google Tag Manager を利用するためデプロイしておきます。&lt;/p>
+&lt;div class="highlight">&lt;pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-sh" data-lang="sh">HUGO_ENV&lt;span style="color:#f92672">=&lt;/span>production hugo
+git add .
+git commit -m &lt;span style="color:#e6db74">&amp;#34;add: ga&amp;#34;&lt;/span>
+git push
+&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="プロパティの作成">プロパティの作成&lt;/h3>
+&lt;p>&lt;a href="https://search.google.com/search-console">Google Search Console&lt;/a> にアクセスしてプロパティを作成します。&lt;/p>
+&lt;div class="highlight">&lt;pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="color:#f92672">プロパティタイプ&lt;/span>: &lt;span style="color:#ae81ff">URL プレフィックス&lt;/span>
+&lt;span style="color:#f92672">URL&lt;/span>: &lt;span style="color:#ae81ff">https://rema424.github.io/remalab/&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>&lt;h2 id="privacy-policy">Privacy Policy&lt;/h2>
+&lt;p>&lt;a href="https://marketingplatform.google.com/about/analytics/terms/jp/">Google アナリティクスの利用規約&lt;/a>において、利用者には次の事項が求められています。&lt;/p>
+&lt;ul>
+&lt;li>プライバシーポリシーを公開すること&lt;/li>
+&lt;li>データの収集に使われる技術について通知すること&lt;/li>
+&lt;li>Google アナリティクスの使用を通知すること&lt;/li>
+&lt;li>Google アナリティクスでデータが収集、処理される仕組みについて開示すること&lt;/li>
+&lt;/ul>
+&lt;p>これらを盛り込んだ記事を Hugo で作成し、リンクをフッターに配置することにします。&lt;/p>
+&lt;h3 id="ファイルの作成">ファイルの作成&lt;/h3>
+&lt;p>プライバシーポリシーの記事ファイルを作成します。&lt;/p>
+&lt;div class="highlight">&lt;pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-sh" data-lang="sh">hugo new info/privacy.md
+&lt;/code>&lt;/pre>&lt;/div>&lt;p>内容を編集します。&lt;/p>
+&lt;div class="highlight">&lt;pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-md" data-lang="md">&lt;span style="color:#75715e">&amp;lt;!-- content/info/privacy.md --&amp;gt;&lt;/span>
+---
+title: &amp;#34;プライバシーポリシー&amp;#34;
+date: 2020-10-31T14:38:12+09:00
+draft: false
+---
+&lt;span style="color:#75715e">## アクセス解析ツールについて
+&lt;/span>&lt;span style="color:#75715e">&lt;/span>
+当サイトでは、アクセス解析のために「Google アナリティクス」を使用しています。
+データは Cookie を用いて収集されます。
+Google アナリティクスでデータが収集・処理される仕組みの詳細については以下のリンク先を参照ください。
+&lt;span style="color:#66d9ef">-&lt;/span> [&lt;span style="color:#f92672">ユーザーが Google パートナーのサイトやアプリを使用する際の Google によるデータ使用&lt;/span>](&lt;span style="color:#a6e22e">https://policies.google.com/technologies/partner-sites?hl=ja&lt;/span>)
+&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="リンクの設置">リンクの設置&lt;/h3>
+&lt;div class="highlight">&lt;pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="color:#75715e"># config.yaml&lt;/span>
+&lt;span style="color:#f92672">menu&lt;/span>:
+&lt;span style="color:#f92672">footer&lt;/span>:
+- &lt;span style="color:#f92672">identifier&lt;/span>: &lt;span style="color:#ae81ff">privacy&lt;/span>
+&lt;span style="color:#f92672">name&lt;/span>: &lt;span style="color:#ae81ff">プライバシーポリシー&lt;/span>
+&lt;span style="color:#f92672">title&lt;/span>: &lt;span style="color:#ae81ff">プライバシーポリシー&lt;/span>
+&lt;span style="color:#f92672">url&lt;/span>: &lt;span style="color:#ae81ff">/info/privacy/&lt;/span>
+&lt;span style="color:#f92672">weight&lt;/span>: &lt;span style="color:#ae81ff">0&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="確認-3">確認&lt;/h3>
+&lt;p>ローカルサーバーを起動して確認します。&lt;/p>
+&lt;div class="highlight">&lt;pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-sh" data-lang="sh">hugo server -D
+&lt;/code>&lt;/pre>&lt;/div>&lt;h3 id="デプロイ-1">デプロイ&lt;/h3>
+&lt;div class="highlight">&lt;pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-sh" data-lang="sh">HUGO_ENV&lt;span style="color:#f92672">=&lt;/span>production hugo --minify
+git add .
+git commit -m &lt;span style="color:#e6db74">&amp;#34;add: privacy&amp;#34;&lt;/span>
+git push
+&lt;/code>&lt;/pre>&lt;/div></description></item><item><title>プライバシーポリシー</title><link>https://rema424.github.io/remalab/info/privacy/</link><pubDate>Sat, 31 Oct 2020 14:38:12 +0900</pubDate><guid>https://rema424.github.io/remalab/info/privacy/</guid><description>&lt;h2 id="アクセス解析ツールについて">アクセス解析ツールについて&lt;/h2>
+&lt;p>当サイトでは、アクセス解析のために「Google アナリティクス」を使用しています。&lt;/p>
+&lt;p>データは Cookie を用いて収集されます。&lt;/p>
+&lt;p>Google アナリティクスでデータが収集・処理される仕組みのについては以下のリンクをご参照ください。&lt;/p>
+&lt;ul>
+&lt;li>&lt;a href="https://policies.google.com/technologies/partner-sites?hl=ja">ユーザーが Google パートナーのサイトやアプリを使用する際の Google によるデータ使用&lt;/a>&lt;/li>
+&lt;/ul></description></item></channel></rss>

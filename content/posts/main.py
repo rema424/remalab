@@ -59,31 +59,75 @@ def split_to_sentences(text):
     return [s for s in text.split("\n") if s != ""]
 
 
-def aggregate_tensor(embeddings, pooling_strategy="REDUCE_MEAN_MAX"):
+def blocking(sentences):
+    blocks = []
+    block = ""
+
+    for i, s in enumerate(sentences):
+        if len(s) > 510:
+            s = s[:510]
+
+        if len(block) + len(s) > 510:
+            blocks.append(block)
+            block = s
+        else:
+            block = block + s
+
+        if i == len(sentences) - 1:
+            blocks.append(block)
+
+    return blocks
+
+
+def bert_tokenize(blocks):
+    for i, b in enumerate(blocks):
+        b = b.replace("。", " 。")
+        if b[-1] == "。":
+            b = b[:-1]
+        blocks[i] = b
+
+    encoded = tokenizer.batch_encode_plus(blocks, padding=True, add_special_tokens=True)
+
+    input_ids = []
+
+    for ids in encoded["input_ids"]:
+        tokens = tokenizer.convert_ids_to_tokens(ids)
+
+        if "[SEP]" in tokens:
+            sep_idx = tokens.index("[SEP]")
+            sep_id = ids[sep_idx]
+
+        if "。" in tokens:
+            period_idx = tokens.index("。")
+            period_id = ids[period_idx]
+            ids = [sep_id if id == period_id else id for id in ids]
+
+        input_ids.append(ids)
+
+    return input_ids
+
+
+def aggregate(embeddings, pooling_strategy="REDUCE_MEAN_MAX"):
     """
     文ベクトルを集計して文章ベクトルを返却する
     """
-    if pooling_strategy == "REDUCE_MEAN":
-        return torch.mean(embeddings, dim=0)
-    elif pooling_strategy == "REDUCE_MAX":
-        max, _ = torch.max(embeddings, dim=0)
-        return max
-    elif pooling_strategy == "REDUCE_MEAN_MAX":
-        max, _ = torch.max(embeddings, dim=0)
-        mean = torch.mean(embeddings, dim=0)
-        return torch.hstack((max, mean))
-
-
-def aggregate_numpy(embeddings, pooling_strategy="REDUCE_MEAN_MAX"):
-    """
-    文ベクトルを集計して文章ベクトルを返却する
-    """
-    if pooling_strategy == "REDUCE_MEAN":
-        return np.mean(embeddings, axis=0)
-    elif pooling_strategy == "REDUCE_MAX":
-        return np.max(embeddings, axis=0)
-    elif pooling_strategy == "REDUCE_MEAN_MAX":
-        return np.r_[np.max(embeddings, axis=0), np.mean(embeddings, axis=0)]
+    if isinstance(embeddings, torch.Tensor):
+        if pooling_strategy == "REDUCE_MEAN":
+            return torch.mean(embeddings, dim=0)
+        elif pooling_strategy == "REDUCE_MAX":
+            max, _ = torch.max(embeddings, dim=0)
+            return max
+        elif pooling_strategy == "REDUCE_MEAN_MAX":
+            max, _ = torch.max(embeddings, dim=0)
+            mean = torch.mean(embeddings, dim=0)
+            return torch.hstack((max, mean))
+    elif isinstance(embeddings, np.ndarray):
+        if pooling_strategy == "REDUCE_MEAN":
+            return np.mean(embeddings, axis=0)
+        elif pooling_strategy == "REDUCE_MAX":
+            return np.max(embeddings, axis=0)
+        elif pooling_strategy == "REDUCE_MEAN_MAX":
+            return np.r_[np.max(embeddings, axis=0), np.mean(embeddings, axis=0)]
 
 
 def cos_similarity(x, y, eps=1e-8):
@@ -95,23 +139,31 @@ def cos_similarity(x, y, eps=1e-8):
     return torch.dot(nx, ny)
 
 
-def embedding(text, pooling_strategy="REDUCE_MEAN_MAX"):
+def embedding(text, pooling_strategy="REDUCE_MEAN_MAX", debug=False):
     # 前処理
     text = preprocess(text)
 
     # 文単位に分割
     sentences = split_to_sentences(text)
 
+    blocks = blocking(sentences)
+
     # BERTトークン化
-    encoded = tokenizer.batch_encode_plus(
-        sentences, padding=True, add_special_tokens=True
-    )
+    # encoded = tokenizer.batch_encode_plus(
+    #     sentences, padding=True, add_special_tokens=True
+    # )
 
     # BERTトークンID列を抽出
-    input_ids = torch.tensor(encoded["input_ids"], device=device)
+    input_ids = torch.tensor(bert_tokenize(blocks), device=device)
+    # input_ids = torch.tensor(encoded["input_ids"], device=device)
 
     # BERTの最大許容トークン数が512なので超える場合は切り詰める
     input_ids = input_ids[:, :512]
+
+    if debug:
+        for i, s in enumerate(blocks):
+            print(s)
+            print(tokenizer.convert_ids_to_tokens(input_ids[i].tolist()))
 
     with torch.no_grad():  # 勾配計算なし
         # 単語ベクトルを計算
@@ -146,22 +198,36 @@ if __name__ == "__main__":
 """
 
     text_b = """
-森 鷗外（もり おうがい、文久2年1月19日[1]〈1862年2月17日[2][注釈 1]〉 - 1922年〈大正11年〉7月9日）は、日本の明治・大正期の小説家、評論家、翻訳家、陸軍軍医（軍医総監＝中将相当）、官僚（高等官一等）。位階勲等は従二位・勲一等・功三級、医学博士、文学博士。本名は森 林太郎（もり りんたろう）。
+森 鷗外（もり おうがい、文久2年1月19日[1]〈1862年2月17日[2][注釈 1]〉 - 1922年〈大正11年〉7月9日）は、日本の明治・大正期の小説家、評論家、翻訳家、陸軍軍医（軍医総監＝中将相当）、
+官僚（高等官一等）。位階勲等は従二位・勲一等・功三級、医学
+博士、文学博士。本名は森 林太郎（もり りんたろう）。
+
 石見国津和野（現：島根県津和野町）出身。東京大学医学部[注釈 2]卒業。
-大学卒業後、陸軍軍医になり、陸軍省派遣留学生としてドイツでも軍医として4年過ごした。帰国後、訳詩編「於母影」、小説「舞姫」、翻訳「即興詩人」を発表する一方、同人たちと文芸雑誌『しがらみ草紙』を創刊して文筆活動に入った。その後、日清戦争出征や小倉転勤などにより一時期創作活動から遠ざかったものの、『スバル』創刊後に「ヰタ・セクスアリス」「雁」などを発表。乃木希典の殉死に影響されて「興津弥五右衛門の遺書」を発表後、「阿部一族」「高瀬舟」など歴史小説や史伝「澁江抽斎」なども執筆した。
-晩年、帝室博物館（現在の東京国立博物館・奈良国立博物館・京都国立博物館等）総長や帝国美術院（現：日本芸術院）初代院長なども歴任した。    
+
+大学卒業後、陸軍軍医になり、陸軍省派遣留学生としてドイツでも軍医として4年過ごした。帰国後、訳詩編「於母影」、小説「舞姫」、翻訳「即興詩人」を発表する一方、同人たちと文芸雑誌『しがらみ草紙』を創
+刊して文筆活動に入った。その後、日清戦争出征や小倉転勤などにより一時期創作活動から遠ざかったものの、『スバル』創刊後に「ヰタ・セクスアリス」「雁」などを発表。乃木希典の殉死に影響されて「興津弥五右衛門の遺書」を発表後
+、「阿部一族」「高瀬舟」など歴史小説や史伝「澁江抽斎」なども執筆した。
+
+晩年、帝室博物館（現在の東京国立博物館・奈良国立博物館・京都国立博物館等）総長や帝国美術院（現：日本芸術院）初代院長なども歴任した。"""
+
+    text_c = """
+の方法により請求がなされるのが通常であり，これによって実質的な勝敗が決まる（門口正人編『新・裁判実務大系第11巻会社訴訟・商事仮処分・商事非訟』（青林書院・2001）252頁〔古閑裕二〕）。
+募集株式の発行等の差止めの訴えおよびその仮処分の申立ては，株主が行うことができる。株式の譲渡を受けた株主については，株主名簿に株主として記載されていること（法130条，会社法大系第４巻286頁以下〔真鍋美穂子〕）または個別株主通知がされた後４週間以内に
+行使すること（社債株式振替法154条２項，下記第７章１4参照）が必要である。仮処分の申立ての管轄は，本案の管轄裁判所（民事保全法12条１項），すなわち被告である会社の本店所在地を管轄する地方裁判所にある（民事訴訟法４条１項，４項）。申立ての趣旨は，発行等が
+されようとしている募集株式を特定して，それを仮に差し止める旨が表現される必要があり，例えば「債務者が平成○年○月○日に開催した取締役会の決議に基づき現に手続中の普通株式○○株の募集株式の発行を仮に差し止める。」のように記載される。発行等の差止めの仮処分は仮
+の地位を定める仮処分であるため，口頭弁論または債務者が立ち会うことができる審尋の期日を経る必要があり（民事保全法23条４項），株主に生ずる著しい損害または急迫の危険を避けるためこれを必要とするときに仮処分命令が発せられる（民事保全法23条２項）（以上につき
+前掲『新・裁判実務大系第11巻』253頁以下〔古閑裕二〕）。公開会社が取締役会の決議に基づいて募集株式の発行等を行う場合は，当該発行等について通知・公告等（法201条３項から５項まで）が行われた時に初めて株主に発行等の事実が分かることが多い。他方，通知・公告等は
+払込期日の２週間前までに行われれば良いので，仮処分の申立ておよび仮処分命令に関する決定はその間に行われることとなり，極めて短期間で手続を進行させることになる（前掲『新・裁判実務大系第11巻』254頁〔古閑裕二〕）。保全命令を出す際に，債権者（株主）に担保を立てさ
+せることができ（民事保全法14条１項），実務上，保証金を立てさせることが通常である。その金額は，理論的には発行等の差止めによって会社が受けると考えられる損害の額（資金調達コスト）
 """
 
-    vec_a = embedding(text_a)
-    vec_b = embedding(text_b)
-    sim = cos_similarity(vec_a, vec_b).item()
+    vec_a = embedding(text_a, pooling_strategy="REDUCE_MEAN_MAX", debug=True)
+    vec_b = embedding(text_b, pooling_strategy="REDUCE_MEAN_MAX", debug=True)
+    vec_c = embedding(text_c, pooling_strategy="REDUCE_MEAN_MAX", debug=True)
+    sim_a_b = cos_similarity(vec_a, vec_b).item()
+    sim_b_c = cos_similarity(vec_b, vec_c).item()
+    sim_c_a = cos_similarity(vec_c, vec_a).item()
 
-    p(vec_a.shape)
-    p(vec_a.dtype)
-    p(vec_a[:5])
-
-    p(vec_b.shape)
-    p(vec_b.dtype)
-    p(vec_b[:5])
-
-    p(sim)
+    p(sim_a_b)
+    p(sim_b_c)
+    p(sim_c_a)

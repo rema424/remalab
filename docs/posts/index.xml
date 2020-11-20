@@ -1,4 +1,22 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Posts on RemaLab</title><link>https://rema424.github.io/remalab/posts/</link><description>RemaLab (Posts)</description><generator>Hugo -- gohugo.io</generator><language>ja-jp</language><lastBuildDate>Fri, 13 Nov 2020 21:13:05 +0900</lastBuildDate><atom:link href="https://rema424.github.io/remalab/posts/index.xml" rel="self" type="application/rss+xml"/><item><title>【2020年11月版】PyTorchとBERTで文章の分散表現（ベクトル）を取得する</title><link>https://rema424.github.io/remalab/posts/sentence-vector/</link><pubDate>Fri, 13 Nov 2020 21:13:05 +0900</pubDate><guid>https://rema424.github.io/remalab/posts/sentence-vector/</guid><description>&lt;p>日本語における自然言語処理のライブラリ整備がここ1年で大きく進んだみたいです。
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Posts on RemaLab</title><link>https://rema424.github.io/remalab/posts/</link><description>RemaLab (Posts)</description><generator>Hugo -- gohugo.io</generator><language>ja-jp</language><lastBuildDate>Fri, 20 Nov 2020 15:00:27 +0900</lastBuildDate><atom:link href="https://rema424.github.io/remalab/posts/index.xml" rel="self" type="application/rss+xml"/><item><title>EC2のデフォルトユーザー(ec2-user)とデフォルトSSHポートの変更をユーザーデータで自動化する</title><link>https://rema424.github.io/remalab/posts/ec2-userdata/</link><pubDate>Fri, 20 Nov 2020 15:00:27 +0900</pubDate><guid>https://rema424.github.io/remalab/posts/ec2-userdata/</guid><description>&lt;p>EC2の起動時のオプションにユーザーデータという項目があります。
+こちらを利用すると立ち上げ時のOS内部の設定を変更できます。
+例えばEC2ではデフォルトでec2-userという名称のユーザーが作られますが、このデフォルトユーザーを任意の名称に変更することも可能です。&lt;/p>
+&lt;p>今回は例として「デフォルトユーザーの名称変更」と「SSHポートの変更」をやってみます。&lt;/p>
+&lt;p>と言ってもやることは簡単で、EC2起動時の項目に「ユーザーデータ」というのがあるのでそこに以下のyaml形式のテキストを入力して立ち上げるだけです。&lt;/p>
+&lt;p>以下の &lt;code>&amp;lt;username&amp;gt;&lt;/code> は任意のユーザー名で置き換えます。&lt;/p>
+&lt;div class="highlight">&lt;pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-yaml" data-lang="yaml">&lt;span style="color:#75715e">#cloud-config&lt;/span>
+&lt;span style="color:#f92672">timezone&lt;/span>: &lt;span style="color:#ae81ff">Asia/Tokyo&lt;/span>
+&lt;span style="color:#f92672">users&lt;/span>:
+- &lt;span style="color:#ae81ff">default&lt;/span>
+&lt;span style="color:#f92672">runcmd&lt;/span>:
+- &lt;span style="color:#e6db74">&amp;#39;/bin/sed -i&amp;#34;.org&amp;#34; --follow-symlinks -e &amp;#34;s/#Port 22/Port 10022/&amp;#34; /etc/ssh/sshd_config&amp;#39;&lt;/span>
+- &lt;span style="color:#e6db74">&amp;#39;systemctl restart sshd.service&amp;#39;&lt;/span>
+&lt;span style="color:#f92672">system_info&lt;/span>:
+&lt;span style="color:#f92672">default_user&lt;/span>:
+&lt;span style="color:#f92672">name&lt;/span>: &lt;span style="color:#ae81ff">&amp;lt;username&amp;gt;&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div>&lt;p>以下のコマンドでSSHログインします。&lt;/p>
+&lt;div class="highlight">&lt;pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-sh" data-lang="sh">ssh -i &amp;lt;path-to-key&amp;gt; &amp;lt;username&amp;gt;@&amp;lt;hostname&amp;gt; -p &lt;span style="color:#ae81ff">10022&lt;/span>
+&lt;/code>&lt;/pre>&lt;/div></description></item><item><title>【2020年11月版】PyTorchとBERTで文章の分散表現（ベクトル）を取得する</title><link>https://rema424.github.io/remalab/posts/sentence-vector/</link><pubDate>Fri, 13 Nov 2020 21:13:05 +0900</pubDate><guid>https://rema424.github.io/remalab/posts/sentence-vector/</guid><description>&lt;p>日本語における自然言語処理のライブラリ整備がここ1年で大きく進んだみたいです。
 これに伴って情報の古い記事も多くなったように感じられたので記しておきます。&lt;/p>
 &lt;p>以前はBERTで日本語を扱う場合は形態素解析やBERTトークン化を自身で行う必要があったようですが、今はライブラリに一任できます。環境構築も非常に簡単でした。&lt;/p>
 &lt;h2 id="setup">setup&lt;/h2>
